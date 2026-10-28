@@ -1,4 +1,4 @@
-﻿import * as cheerio from "cheerio";
+import * as cheerio from "cheerio";
 import type { Element } from "domhandler";
 
 // URL del grupo de investigaciÃ³n en Scienti.
@@ -50,10 +50,23 @@ export type ScientiCatalogo = {
 };
 
 // ---------- caché en memoria -----------------------------------------------
-// Evita consultar Crossref mÃ¡s de una vez por DOI mientras el proceso estÃ¡ vivo.
-// En producciÃ³n SSR, el proceso Node persiste entre peticiones, por lo que
-// funciona como una cachÃ© "warm" entre usuarios.
+// Evita consultar Crossref más de una vez por DOI mientras el proceso está vivo.
+// En producción SSR, el proceso Node persiste entre peticiones, por lo que
+// funciona como una caché "warm" entre usuarios.
 const crossrefCache = new Map<string, Publicacion>();
+
+// Caché en memoria para el catálogo completo de Scienti (artículos, libros, software).
+// Evita volver a scrapear MinCiencias y consultar Crossref en cada visita.
+let catalogoCache: {
+  timestamp: number;
+  datos: ScientiCatalogo;
+} | null = null;
+
+// TTL (Tiempo de vida de la caché): 24 horas en milisegundos
+const TTL_CATALOGO_MS = 24 * 60 * 60 * 1000;
+
+// Deduplicador de peticiones en vuelo (evita consultas simultáneas idénticas)
+let promesaEnVuelo: Promise<ScientiCatalogo> | null = null;
 
 // ---------- helpers ---------------------------------------------------------
 
@@ -426,61 +439,98 @@ function crearCatalogoVacio(): ScientiCatalogo {
   };
 }
 
-export async function obtenerSeccionesScienti(): Promise<ScientiCatalogo> {
-  try {
-    const response = await fetch(SCIENTI_URL);
-    if (!response.ok) {
-      console.error(`No se pudo consultar Scienti: ${response.status}`);
-      return crearCatalogoVacio();
-    }
+export async function obtenerSeccionesScienti(forzarRecarga = false): Promise<ScientiCatalogo> {
+  const ahora = Date.now();
 
-    const buffer = await response.arrayBuffer();
-    const html = new TextDecoder("iso-8859-1").decode(buffer);
-    const $ = cheerio.load(html);
-
-    const catalogo: ScientiCatalogo = crearCatalogoVacio();
-
-    const headers = $("td.celdaEncabezado");
-    for (const header of headers.toArray()) {
-      const headerTd = $(header);
-      const encabezado = normalizarTextoSeccion(headerTd.text());
-
-      if (encabezado.includes("publicad") && !encabezado.includes("capitulo") && !encabezado.includes("libros de formacion") && !encabezado.includes("libros de divulgacion") && !encabezado.includes("libros publicados")) {
-        const publicacionesSeccion = await obtenerPublicacionesDeSeccion($, header);
-        catalogo.publicaciones.push(...publicacionesSeccion);
-      }
-
-      if (encabezado.includes("softwar")) {
-        catalogo.software = extraerItemsSeccion($, header);
-      }
-
-      if (encabezado.includes("capitulo") && encabezado.includes("libro")) {
-        catalogo.capitulosLibro = extraerItemsSeccion($, header);
-      }
-
-      if (encabezado.includes("libros de formacion") || encabezado.includes("libros de formación")) {
-        catalogo.librosFormacion = extraerItemsSeccion($, header);
-      }
-
-      if (encabezado.includes("libros de divulgacion") || encabezado.includes("libros de divulgación")) {
-        catalogo.librosDivulgacion = extraerItemsSeccion($, header);
-      }
-    }
-
-    return catalogo;
-  } catch (error) {
-    console.error("Error al consultar Scienti; se usará catálogo vacío.", error);
-    return crearCatalogoVacio();
+  // 1. Si tenemos datos en caché válidos y no se fuerza recarga, responder en < 1ms
+  if (!forzarRecarga && catalogoCache && ahora - catalogoCache.timestamp < TTL_CATALOGO_MS) {
+    return catalogoCache.datos;
   }
+
+  // 2. Si ya hay una petición en proceso, compartir la misma promesa (deduplicación)
+  if (promesaEnVuelo) {
+    return await promesaEnVuelo;
+  }
+
+  // 3. Iniciar consulta a Scienti y Crossref
+  promesaEnVuelo = (async () => {
+    try {
+      const response = await fetch(SCIENTI_URL);
+      if (!response.ok) {
+        console.error(`No se pudo consultar Scienti: ${response.status}`);
+        if (catalogoCache) return catalogoCache.datos;
+        return crearCatalogoVacio();
+      }
+
+      const buffer = await response.arrayBuffer();
+      const html = new TextDecoder("iso-8859-1").decode(buffer);
+      const $ = cheerio.load(html);
+
+      const catalogo: ScientiCatalogo = crearCatalogoVacio();
+
+      const headers = $("td.celdaEncabezado");
+      for (const header of headers.toArray()) {
+        const headerTd = $(header);
+        const encabezado = normalizarTextoSeccion(headerTd.text());
+
+        if (
+          encabezado.includes("publicad") &&
+          !encabezado.includes("capitulo") &&
+          !encabezado.includes("libros de formacion") &&
+          !encabezado.includes("libros de divulgacion") &&
+          !encabezado.includes("libros publicados")
+        ) {
+          const publicacionesSeccion = await obtenerPublicacionesDeSeccion($, header);
+          catalogo.publicaciones.push(...publicacionesSeccion);
+        }
+
+        if (encabezado.includes("softwar")) {
+          catalogo.software = extraerItemsSeccion($, header);
+        }
+
+        if (encabezado.includes("capitulo") && encabezado.includes("libro")) {
+          catalogo.capitulosLibro = extraerItemsSeccion($, header);
+        }
+
+        if (encabezado.includes("libros de formacion") || encabezado.includes("libros de formación")) {
+          catalogo.librosFormacion = extraerItemsSeccion($, header);
+        }
+
+        if (encabezado.includes("libros de divulgacion") || encabezado.includes("libros de divulgación")) {
+          catalogo.librosDivulgacion = extraerItemsSeccion($, header);
+        }
+      }
+
+      // Guardar en la caché global en memoria
+      catalogoCache = {
+        timestamp: Date.now(),
+        datos: catalogo,
+      };
+
+      return catalogo;
+    } catch (error) {
+      console.error("Error al consultar Scienti; se usará catálogo de respaldo.", error);
+      if (catalogoCache) return catalogoCache.datos;
+      return crearCatalogoVacio();
+    } finally {
+      promesaEnVuelo = null;
+    }
+  })();
+
+  return await promesaEnVuelo;
 }
 
 export const prerender = false;
 
-export async function GET() {
+export async function GET({ url }: { url?: URL } = {}) {
   try {
-    const { publicaciones } = await obtenerSeccionesScienti();
+    const forzarRecarga = url?.searchParams?.get("refresh") === "true";
+    const { publicaciones } = await obtenerSeccionesScienti(forzarRecarga);
     return new Response(JSON.stringify({ publicaciones }), {
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "public, max-age=3600, s-maxage=86400",
+      },
     });
   } catch (error) {
     console.error("Fallo en GET de Scienti; devolviendo respuesta vacía.", error);
