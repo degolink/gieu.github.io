@@ -1,6 +1,6 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
-import { obtenerProyectos } from "../utils/googleSheets.ts";
+import { obtenerProyectos, slugProyecto } from "../utils/googleSheets.ts";
 
 // Obtener los proyectos desde Google Sheets
 const proyectos = await obtenerProyectos();
@@ -186,26 +186,15 @@ const tecnologiasUnicas = [...new Set(proyectos.flatMap(proyecto => proyecto.tec
                                             Año: {proyecto.año}
                                         </span>
                                     </div>
-                                    {proyecto.url_vermas ? (
-                                        <a 
-                                            href={proyecto.url_vermas}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            class="inline-flex items-center gap-2 bg-gradient-to-r from-Shiraz-600 to-Shiraz-700 hover:from-Shiraz-700 hover:to-Shiraz-800 text-white px-6 py-3 rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-lg active:scale-95 font-medium group/btn"
-                                        >
-                                            Ver más
-                                            <svg class="w-4 h-4 transform group-hover/btn:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
-                                            </svg>
-                                        </a>
-                                    ) : (
-                                        <button class="inline-flex items-center gap-2 bg-cod_gray-400 text-white px-6 py-3 rounded-xl cursor-not-allowed opacity-60 font-medium" disabled>
-                                            Ver más
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728L5.636 5.636m12.728 12.728L18.364 5.636M5.636 18.364l12.728-12.728"></path>
-                                            </svg>
-                                        </button>
-                                    )}
+                                    <a 
+                                        href={`/web/projects/${slugProyecto(proyecto.titulo)}`}
+                                        class="inline-flex items-center gap-2 bg-gradient-to-r from-Shiraz-600 to-Shiraz-700 hover:from-Shiraz-700 hover:to-Shiraz-800 text-white px-6 py-3 rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-lg active:scale-95 font-medium group/btn"
+                                    >
+                                        Conocer más
+                                        <svg class="w-4 h-4 transform group-hover/btn:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                        </svg>
+                                    </a>
                                 </div>
                             </div>
                             

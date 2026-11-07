@@ -10,6 +10,10 @@ export interface Proyecto {
   url_vermas?: string;
 }
 
+// Dirección de la página de detalle: "Programación para niños" -> "programacion-para-ninos"
+export const slugProyecto = (titulo: string) =>
+  titulo.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
 export interface Investigacion {
   titulo: string;
   descripcion: string;

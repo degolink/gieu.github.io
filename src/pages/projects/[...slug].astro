@@ -4,19 +4,29 @@ import { getEntry } from "astro:content";
 
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import ProjectCard from "../../components/ProjectCard.astro";
+import HeroBubbles from "../../components/common/HeroBubbles.astro";
+import LeadersSection from "../../components/TeamPage/LeadersSection.astro";
+import MembersGrid from "../../components/TeamPage/MembersGrid.astro";
+import { obtenerProyectos, slugProyecto } from "../../utils/googleSheets";
+import { projectTeams } from "../../utils/projectTeams";
 
 const { slug } = Astro.params;
 if (slug === undefined) throw new Error("Slug is required");
 
+// Las páginas markdown de src/content/projects tienen prioridad; si no hay, se busca el proyecto en la hoja.
 const entry = await getEntry("projects", slug);
-if (entry === undefined) return Astro.redirect("/404");
+const proyecto = entry ? undefined : (await obtenerProyectos()).find((p) => slugProyecto(p.titulo) === slug);
+if (!entry && !proyecto) return Astro.redirect("/404");
 
-const { Content } = await entry.render();
-const topProjects = (await getCollection("projects")).slice(0, 3);
+const { Content } = entry ? await entry.render() : { Content: null };
+const topProjects = entry ? (await getCollection("projects")).slice(0, 3) : [];
+const equipo = proyecto ? projectTeams[proyecto.titulo] : undefined;
+const totalEquipo = equipo ? equipo.leaders.length + equipo.members.length : 0;
 
 const base_url = import.meta.env.BASE_URL;
 ---
 
+{entry && Content && (
 <BaseLayout title={`Projects | ${entry.data.title}`}>
     <div class="w-full flex flex-col justify-center items-center mt-5 mb-16">
         <div class="max-w-[1248px] mx-10">
@@ -60,6 +70,77 @@ const base_url = import.meta.env.BASE_URL;
         </div>
     </div>
 </BaseLayout>
+)}
+
+{proyecto && (
+<BaseLayout title={`${proyecto.titulo} - Proyectos - GIEU`}>
+    <main class="bg-white pb-16">
+        <!-- Project hero -->
+        <section
+            class="relative isolate overflow-hidden bg-gradient-to-br from-daisy_bush-900 via-daisy_bush-800 to-Shiraz-800 px-6 py-16 text-white"
+            aria-labelledby="project-title"
+        >
+            <HeroBubbles />
+            <div class="relative z-10 mx-auto flex max-w-[1140px] flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                <div>
+                    <p class="text-sm text-cod_gray-300">
+                        <a href={`${base_url}/projects`} class="underline hover:text-white">Proyectos</a> / {proyecto.titulo}
+                    </p>
+                    <h1 id="project-title" class="mt-2 text-4xl font-bold sm:text-5xl">{proyecto.titulo}</h1>
+                </div>
+                {proyecto.url_vermas && (
+                    <a
+                        href={proyecto.url_vermas}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="inline-flex w-fit items-center gap-2 rounded-xl bg-white px-6 py-3 font-semibold text-daisy_bush-800 transition hover:scale-105"
+                    >
+                        Ver más
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                        </svg>
+                        <span class="sr-only">(se abre en una pestaña nueva)</span>
+                    </a>
+                )}
+            </div>
+        </section>
+
+        <!-- In-page tabs -->
+        {equipo && (
+            <nav class="sticky top-[calc(var(--header-h,80px)-2px)] z-40 border-b bg-white" aria-label="Secciones del proyecto">
+                <div class="mx-auto flex max-w-[1140px] gap-6 px-6 text-sm font-semibold">
+                    <a href="#sobre" class="border-b-2 border-daisy_bush-700 py-3">Sobre el proyecto</a>
+                    <a href="#equipo" class="py-3 text-cod_gray-600 hover:text-daisy_bush-700">Equipo ({totalEquipo})</a>
+                </div>
+            </nav>
+        )}
+
+        <section id="sobre" class="mx-auto max-w-[850px] scroll-mt-32 px-6 py-12 text-lg text-cod_gray-700">
+            <p>{proyecto.descripcion}</p>
+            <p class="mt-4 text-sm">
+                Estado: {proyecto.estado} · Año: {proyecto.año}{proyecto.tecnologias.length > 0 && ` · ${proyecto.tecnologias.join(", ")}`}
+            </p>
+        </section>
+
+        {equipo && (
+            <section id="equipo" class="scroll-mt-32" aria-labelledby="equipo-title">
+                <h2 id="equipo-title" class="mb-8 text-center text-3xl font-bold text-daisy_bush-700">Equipo del proyecto</h2>
+                <LeadersSection leaders={equipo.leaders} />
+                <MembersGrid members={equipo.members} />
+            </section>
+        )}
+    </main>
+    <script>
+        // El header se encoge al hacer scroll; la barra de pestañas sigue su altura real
+        const header = document.getElementById("main-header");
+        if (header) {
+            new ResizeObserver(() => {
+                document.documentElement.style.setProperty("--header-h", `${header.offsetHeight}px`);
+            }).observe(header);
+        }
+    </script>
+</BaseLayout>
+)}
 
 <style>
     div#title-card {

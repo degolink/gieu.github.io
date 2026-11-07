@@ -4,6 +4,9 @@
 import GroupImage from "../assets/img/team/grupo2021.jpg";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Contact from "../components/common/Contact.astro";
+import { obtenerIntegrantes } from "../utils/gruplac";
+
+const { activos, pasados } = obtenerIntegrantes();
 ---
 
 <BaseLayout title="GIEU - Grupo de Investigación en Informática Educativa">
@@ -77,6 +80,24 @@ import Contact from "../components/common/Contact.astro";
                     la divulgación y aplicación de tecnología de la información y
                     la comunicación en la educación y la comunicación humana.
                 </p>
+
+                <!-- GrupLAC figures, linking to the team page -->
+                <a
+                    href="/web/team"
+                    class="group grid w-full grid-cols-3 divide-x rounded-2xl border bg-white text-center shadow-sm transition hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-daisy_bush-700"
+                >
+                    <div class="p-4">
+                        <p class="text-3xl font-bold text-daisy_bush-700">{activos.length}</p>
+                        <p class="text-sm text-cod_gray-600">integrantes activos</p>
+                    </div>
+                    <div class="p-4">
+                        <p class="text-3xl font-bold text-daisy_bush-700">{activos.length + pasados.length}</p>
+                        <p class="text-sm text-cod_gray-600">han pasado por el grupo</p>
+                    </div>
+                    <div class="flex items-center justify-center p-4 font-semibold text-Shiraz-700 group-hover:underline">
+                        Ver integrantes →
+                    </div>
+                </a>
             </div>
             <div class="flex items-center justify-center lg:w-1/2">
                 <img
