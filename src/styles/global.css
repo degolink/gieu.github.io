@@ -7,3 +7,46 @@
 body {
     @apply bg-cod_gray-50 font-['Lato'];
 }
+
+@media (prefers-reduced-motion: reduce) {
+    *:not([data-carousel-track]),
+    *:not([data-carousel-track])::before,
+    *:not([data-carousel-track])::after {
+        animation-delay: 0ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-delay: 0ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* Slut (markdown content) style */
+
+#content {
+    @apply text-cod_gray-950;
+}
+
+#content pre.astro-code {
+    @apply rounded-lg p-5;
+}
+
+#content h2 {
+    @apply font-bold text-2xl my-5;
+}
+
+#content h3 {
+    @apply font-bold text-xl my-4;
+}
+
+#content h4 {
+    @apply font-semibold text-lg my-3;
+}
+
+#content p {
+    @apply my-3;
+}
+
+#content img {
+    @apply w-auto mx-auto rounded-lg my-3;
+}

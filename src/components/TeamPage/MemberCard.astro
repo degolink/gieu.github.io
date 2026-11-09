@@ -1,0 +1,55 @@
+---
+import type { Person } from '../../utils/peopleInfo';
+
+interface Props {
+  member: Person;
+}
+
+const { member } = Astro.props;
+
+const initials = member.name
+  .split(' ')
+  .filter(Boolean)
+  .slice(0, 2)
+  .map((word) => word.charAt(0))
+  .join('');
+---
+
+<!-- Member card with hover animation -->
+<article class="flex flex-col items-center text-center transition-transform duration-300 ease-out hover:scale-110">
+
+  <!-- Circular photo container -->
+  <div
+    class="flex h-48 w-48 items-center justify-center rounded-full bg-daisy_bush-400 md:h-52 md:w-52"
+  >
+    <!-- Show the member photo when available -->
+    {member.photo ? (
+      <img
+        src={member.photo}
+        alt={`Photo of ${member.name}`}
+        class="h-full w-full rounded-full object-cover"
+        loading="lazy"
+      />
+    ) : (
+
+      <!-- Show initials when the photo is unavailable -->
+      <span
+        class="text-xl font-bold text-white"
+        aria-label={`Photo of ${member.name} not available`}
+      >
+        {initials}
+      </span>
+    )}
+  </div>
+
+  <!-- Member name and role -->
+  <div>
+    <p class="mt-2 text-base font-bold text-cod_gray-900">
+      {member.name}
+    </p>
+
+    <p class="text-sm text-cod_gray-800">
+      {member.role}
+    </p>
+  </div>
+</article>

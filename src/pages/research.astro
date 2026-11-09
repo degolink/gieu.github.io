@@ -1,29 +1,70 @@
 ---
 import BaseLayout from "../layouts/BaseLayout.astro";
+import Pagination from "../components/Pagination.astro";
+import { getCollection } from "astro:content";
 import {
   SCIENTI_URL,
   obtenerSeccionesScienti,
 } from "./api/publicaciones.json.ts";
 import type { ScientiCatalogo } from "./api/publicaciones.json.ts";
+import type { Publicacion as PublicacionApi } from "./api/publicaciones.json.ts";
 
-const catalogoVacioScienti: ScientiCatalogo = {
-  publicaciones: [],
-  software: [],
-  capitulosLibro: [],
-  librosFormacion: [],
-  librosDivulgacion: [],
+const catalogoScienti = await obtenerSeccionesScienti();
+const usandoRespaldo = catalogoScienti.publicaciones.length === 0;
+const publicaciones: PublicacionApi[] = usandoRespaldo
+  ? (await getCollection("researchs")).map(({ data }, index) => ({
+      numero: String(index + 1),
+      titulo: data.title,
+      revista: data.journal,
+      editorial: data.publisher,
+      anio: String(data.year),
+      autores: data.author.join("; "),
+      doi: data.DOI ?? null,
+      url: data.url,
+    }))
+  : catalogoScienti.publicaciones;
+
+const publicacionesOrdenadas = [...publicaciones].sort(
+  (a, b) => Number(b.anio ?? 0) - Number(a.anio ?? 0)
+);
+const publicacionesPorPagina = 6;
+const totalPaginas = Math.max(1, Math.ceil(publicacionesOrdenadas.length / publicacionesPorPagina));
+const paginaSolicitada = Number(Astro.url.searchParams.get("pagina") ?? "1");
+const paginaActual = Number.isSafeInteger(paginaSolicitada)
+  ? Math.min(Math.max(paginaSolicitada, 1), totalPaginas)
+  : 1;
+const inicioPublicaciones = (paginaActual - 1) * publicacionesPorPagina;
+const publicacionesEnPagina = publicacionesOrdenadas.slice(
+  inicioPublicaciones,
+  inicioPublicaciones + publicacionesPorPagina
+);
+const enlacePagina = (parametro: string, pagina: number, seccion: string) => {
+  const parametros = new URLSearchParams(Astro.url.searchParams);
+  if (pagina === 1) parametros.delete(parametro);
+  else parametros.set(parametro, String(pagina));
+  const consulta = parametros.toString();
+  const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+  const pathname = Astro.url.pathname.startsWith(`${basePath}/`) || Astro.url.pathname === basePath
+    ? Astro.url.pathname
+    : `${basePath}${Astro.url.pathname.startsWith("/") ? "" : "/"}${Astro.url.pathname}`;
+  return `${pathname}${consulta ? `?${consulta}` : ""}#${seccion}`;
 };
 const catalogoScienti = await obtenerSeccionesScienti().catch(() => catalogoVacioScienti);
 const publicaciones = catalogoScienti.publicaciones;
 
 // Mapeamos al modelo que usa la UI de tarjetas.
-const investigaciones = publicaciones.map((pub) => ({
+const investigaciones = publicacionesEnPagina.map((pub) => ({
   titulo: pub.titulo,
   categoria: pub.revista || "Publicación Scienti",
   año_inicio: pub.anio ?? "Sin año",
   descripcion: pub.autores ? `Autores: ${pub.autores}` : "Autores no disponibles",
   tecnologias: [pub.revista, pub.editorial].filter(Boolean) as string[],
-  url_detalles: pub.url ?? SCIENTI_URL,
+  esBusqueda: !pub.doi && (!pub.url || pub.url === SCIENTI_URL),
+  url_detalles: pub.doi
+    ? pub.url ?? `https://doi.org/${pub.doi}`
+    : pub.url && pub.url !== SCIENTI_URL
+      ? pub.url
+      : `https://scholar.google.com/scholar?q=${encodeURIComponent(pub.titulo)}`,
   doi: pub.doi,
 }));
 
@@ -95,26 +136,12 @@ const productosScienti = {
   })),
 };
 
-const hayDatosScienti = investigaciones.length > 0 || Object.values(productosScienti).some((items) => items.length > 0);
+  return { ...configuracion, total: todos.length, totalPaginas, paginaActual, inicio, items };
+});
 
-function obtenerColorTecnologia(tech: string) {
-  const techColors: { [key: string]: string } = {
-    'Realidad Virtual': 'daisy_bush',
-    'Química': 'Shiraz',
-    'Educación Superior': 'cod_gray',
-    'Gamificación': 'Shiraz',
-    'Matemáticas': 'daisy_bush',
-    'Motivación': 'cod_gray',
-    'Inteligencia Artificial': 'cod_gray',
-    'Evaluación': 'daisy_bush',
-    'Personalización': 'Shiraz',
-  };
-  
-  return techColors[tech] || 'cod_gray';
-}
 ---
 
-<BaseLayout title="GIEU - Investigación">
+<BaseLayout title="GIEU - Investigación" description="Conoce las líneas de investigación, publicaciones y productos académicos del Grupo de Investigación en Informática Educativa de la Universidad del Norte.">
     <style>
         @keyframes float {
             0%, 100% { transform: translateY(0px); }
@@ -170,17 +197,13 @@ function obtenerColorTecnologia(tech: string) {
             }
         }
         
-        .research-card {
-            animation: fadeInUp 0.6s ease-out forwards;
-            opacity: 0;
+        .results-grid.results-enter {
+            animation: resultsEnter 0.28s ease-out both;
         }
-        
-        .research-card:nth-child(odd) {
-            animation-delay: 0.1s;
-        }
-        
-        .research-card:nth-child(even) {
-            animation-delay: 0.3s;
+
+        @keyframes resultsEnter {
+            from { opacity: 0.5; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         
         .area-card {
@@ -238,9 +261,32 @@ function obtenerColorTecnologia(tech: string) {
         .animate-fade-in-up {
             animation: fadeInUp 0.8s ease-out forwards;
         }
+
+        @media (prefers-reduced-motion: reduce) {
+            .research-page * {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+
+            .area-card, .hero-title, .hero-subtitle,
+            .floating-bg, .floating-bg-reverse, .floating-element,
+            .animate-fade-in-up {
+                animation: none !important;
+                opacity: 1 !important;
+            }
+
+            .research-hover, .area-card, .tech-badge {
+                transition: none !important;
+            }
+
+            .research-hover:hover, .area-card:hover, .tech-badge:hover {
+                transform: none !important;
+            }
+        }
     </style>
 
-    <main class="min-h-screen relative overflow-hidden">
+    <main class="research-page min-h-screen relative overflow-hidden">
         <!-- Floating Background Elements -->
         <div class="fixed inset-0 overflow-hidden pointer-events-none z-0">
             <div class="floating-bg absolute top-20 left-10 w-32 h-32 bg-daisy_bush-300 opacity-10 rounded-full blur-xl"></div>
@@ -315,7 +361,7 @@ function obtenerColorTecnologia(tech: string) {
         </section>
 
         <!-- Research Projects -->
-        <section class="relative bg-gradient-to-br from-cod_gray-100 to-cod_gray-200 py-20 z-10">
+        <section id="publicaciones" class="relative bg-gradient-to-br from-cod_gray-100 to-cod_gray-200 py-20 z-10 scroll-mt-24">
             <div class="max-w-[1140px] mx-auto px-10 relative">
                 <!-- Decorative elements -->
                 <div class="absolute top-10 right-10 w-20 h-20 bg-daisy_bush-200 opacity-20 rounded-full blur-xl floating-bg"></div>
@@ -459,14 +505,11 @@ function obtenerColorTecnologia(tech: string) {
                                         {investigacion.descripcion}
                                     </p>
                                     <div class="flex flex-wrap gap-2 mb-4">
-                                        {investigacion.tecnologias.map((tech) => {
-                                            const colorTech = obtenerColorTecnologia(tech);
-                                            return (
-                                                <span class={`tech-badge bg-gradient-to-r from-${colorTech}-100 to-${colorTech}-200 text-${colorTech}-800 px-3 py-1 rounded-full text-xs font-medium border border-${colorTech}-300/30`}>
-                                                    {tech}
-                                                </span>
-                                            );
-                                        })}
+                                        {investigacion.tecnologias.map((tech) => (
+                                            <span class="tech-badge bg-cod_gray-100 text-cod_gray-800 px-3 py-1 rounded-full text-xs font-medium border border-cod_gray-300/30">
+                                                {tech}
+                                            </span>
+                                        ))}
                                     </div>
                                     <div class="flex items-center justify-between flex-wrap gap-2">
                                         {/* Badge DOI: solo si existe, siempre enlaza a doi.org */}
@@ -486,9 +529,10 @@ function obtenerColorTecnologia(tech: string) {
                                                 href={investigacion.url_detalles}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
+                                                aria-label={`${investigacion.esBusqueda ? "Buscar" : "Abrir"} artículo ${investigacion.titulo} (abre en una pestaña nueva)`}
                                                 class="text-daisy_bush-600 hover:text-daisy_bush-700 text-sm font-medium flex items-center gap-1 hover:gap-2 transition-all group-hover:translate-x-1"
                                             >
-                                                Ver más 
+                                                {investigacion.esBusqueda ? "Buscar artículo" : "Abrir artículo"}
                                                 <svg class="w-3 h-3 transition-transform group-hover:rotate-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                                                 </svg>
@@ -550,56 +594,35 @@ function obtenerColorTecnologia(tech: string) {
                     </button>
                 </div>
                 
-                {/* Mensaje amigable si no se pueden cargar las publicaciones */}
-                {!hayDatosScienti && (
-                    <div class="text-center py-12">
-                        <div class="text-6xl mb-4">⚠️</div>
-                        <h3 class="text-xl font-semibold text-cod_gray-900 mb-2">No pudimos cargar las investigaciones en este momento</h3>
-                        <p class="text-cod_gray-600 max-w-2xl mx-auto">
-                            El servicio de Scienti está temporalmente no disponible o está respondiendo con errores.
-                            Intenta recargar la página en unos minutos y, mientras tanto, puedes seguir revisando
-                            nuestras líneas de investigación y actividades principales.
-                        </p>
-                    </div>
-                )}
+                <Pagination currentPage={paginaActual} totalPages={totalPaginas} label="Páginas de publicaciones" hrefForPage={(pagina) => enlacePagina("pagina", pagina, "publicaciones")} />
             </div>
         </section>
 
-        {Object.entries(productosScienti).map(([key, items]) => items.length > 0 && (
-            <section class="relative bg-gradient-to-br from-cod_gray-50 to-white py-16 z-10">
+        {productosScienti.map((seccion) => seccion.total > 0 && (
+            <section id={seccion.parametro} class="relative bg-gradient-to-br from-cod_gray-50 to-white py-16 z-10 scroll-mt-24">
                 <div class="max-w-[1140px] mx-auto px-10 relative">
                     <h2 class="text-3xl font-semibold text-center mb-12 text-cod_gray-900 hero-title">
-                        {key === "software" && "Software producido"}
-                        {key === "capitulosLibro" && "Capítulos de libros publicados"}
-                        {key === "librosFormacion" && "Libros de formación"}
-                        {key === "librosDivulgacion" && "Libros de divulgación y/o compilación"}
+                        {seccion.titulo}
                     </h2>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        {items.map((item) => (
+                    <p class="text-center text-cod_gray-700 mb-8">
+                        Mostrando {seccion.inicio + 1}–{Math.min(seccion.inicio + publicacionesPorPagina, seccion.total)} de {seccion.total} {seccion.total === 1 ? "producto" : "productos"}
+                    </p>
+
+                    <div class="results-grid grid grid-cols-1 md:grid-cols-2 gap-8" data-results-grid>
+                        {seccion.items.map((item) => (
                             <div class="research-card research-hover bg-white/90 backdrop-blur-sm p-6 rounded-xl shadow-lg border border-white/30 hover:border-daisy_bush-200 group">
                                 <div class="flex items-start space-x-4">
-                                    <div class="text-3xl group-hover:scale-110 transition-transform duration-300">📚</div>
+                                    <div class="text-3xl group-hover:scale-110 transition-transform duration-300" aria-hidden="true">{seccion.icono}</div>
                                     <div class="flex-1">
                                         <h3 class="text-lg font-semibold mb-2 text-cod_gray-900 group-hover:text-daisy_bush-700 transition-colors">
                                             {item.titulo}
                                         </h3>
                                         <p class="text-sm text-cod_gray-600 mb-2 font-medium">
-                                            {item.categoria} | {item.año_inicio}
+                                            {seccion.categoria} | {item.anio}
                                         </p>
-                                        <p class="text-cod_gray-700 text-sm leading-relaxed mb-4">
-                                            {item.descripcion}
-                                        </p>
-                                        <div class="flex flex-wrap gap-2 mb-4">
-                                            {item.tecnologias.map((tech) => {
-                                                const colorTech = obtenerColorTecnologia(tech);
-                                                return (
-                                                    <span class={`tech-badge bg-gradient-to-r from-${colorTech}-100 to-${colorTech}-200 text-${colorTech}-800 px-3 py-1 rounded-full text-xs font-medium border border-${colorTech}-300/30`}>
-                                                        {tech}
-                                                    </span>
-                                                );
-                                            })}
-                                        </div>
+                                        {item.autores && <p class="text-cod_gray-700 text-sm leading-relaxed mb-3">Autores: {item.autores}</p>}
+                                        {item.detalle && <p class="text-cod_gray-700 text-sm leading-relaxed mb-4 break-words">{item.detalle}</p>}
                                         <div class="flex items-center justify-between flex-wrap gap-2">
                                             {item.doi && (
                                                 <a
@@ -612,25 +635,26 @@ function obtenerColorTecnologia(tech: string) {
                                                     DOI: {item.doi}
                                                 </a>
                                             )}
-                                            {item.url_detalles && (
-                                                <a 
-                                                    href={item.url_detalles}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    class="text-daisy_bush-600 hover:text-daisy_bush-700 text-sm font-medium flex items-center gap-1 hover:gap-2 transition-all group-hover:translate-x-1"
-                                                >
-                                                    Ver más 
-                                                    <svg class="w-3 h-3 transition-transform group-hover:rotate-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                                                    </svg>
-                                                </a>
-                                            )}
+                                            <a
+                                                href={item.url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                aria-label={`${item.textoEnlace} ${item.titulo} (abre en una pestaña nueva)`}
+                                                class="text-daisy_bush-600 hover:text-daisy_bush-700 text-sm font-medium flex items-center gap-1 hover:gap-2 transition-all group-hover:translate-x-1"
+                                            >
+                                                {item.textoEnlace}
+                                                <svg class="w-3 h-3 transition-transform group-hover:rotate-12" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                                                </svg>
+                                            </a>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         ))}
                     </div>
+
+                    <Pagination currentPage={seccion.paginaActual} totalPages={seccion.totalPaginas} label={`Páginas de ${seccion.titulo.toLowerCase()}`} hrefForPage={(pagina) => enlacePagina(seccion.parametro, pagina, seccion.parametro)} />
                 </div>
             </section>
         ))}

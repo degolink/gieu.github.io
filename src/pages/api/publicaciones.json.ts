@@ -39,14 +39,18 @@ export type ScientiItem = {
   autores: string | null;
   doi: string | null;
   url: string | null;
+  isbn: string | null;
+  sitioWeb: string | null;
 };
 
 export type ScientiCatalogo = {
   publicaciones: Publicacion[];
   software: ScientiItem[];
   capitulosLibro: ScientiItem[];
+  librosPublicados: ScientiItem[];
   librosFormacion: ScientiItem[];
   librosDivulgacion: ScientiItem[];
+  otrosProductosTecnologicos: ScientiItem[];
 };
 
 // ---------- caché en memoria -----------------------------------------------
@@ -54,6 +58,13 @@ export type ScientiCatalogo = {
 // En producción SSR, el proceso Node persiste entre peticiones, por lo que
 // funciona como una caché "warm" entre usuarios.
 const crossrefCache = new Map<string, Publicacion>();
+const CATALOG_TTL_MS = 15 * 60 * 1000;
+const REQUEST_TIMEOUT_MS = 12_000;
+const RETRY_AFTER_FAILURE_MS = 60_000;
+let catalogoCache: ScientiCatalogo | null = null;
+let catalogoCacheTime = 0;
+let siguienteIntento = 0;
+let cargaCatalogoEnCurso: Promise<ScientiCatalogo> | null = null;
 
 // Caché en memoria para el catálogo completo de Scienti (artículos, libros, software).
 // Evita volver a scrapear MinCiencias y consultar Crossref en cada visita.
@@ -86,7 +97,7 @@ function extraerNumero(texto: string): string {
 
 function extraerAnio(texto: string): string | null {
   const years = texto.match(/\b(?:19|20)\d{2}\b/g);
-  return years && years.length > 0 ? years[years.length - 1] : null;
+  return years && years.length > 0 ? years[0] : null;
 }
 
 function extraerAutores(texto: string): string | null {
@@ -122,7 +133,7 @@ function extraerTituloGenerico(texto: string): string {
   const patronPaises = paises.join("|");
 
   const titulo = textoSinTipo
-    .split(new RegExp(`\\s*,\\s*(?:${patronPaises})\\s*,`, "i"))[0]
+    .split(new RegExp(`(?:\\s*,\\s*|\\s+)(?:${patronPaises})\\s*,`, "i"))[0]
     .split(/\s*\b(?:Disponibilidad|Nombre comercial|Sitio web|ISBN|ISSN|Autores|Vol\.|Ed\.|Ed\. editorial|Tipo|Nombre del proyecto)\b/i)[0]
     .replace(/^[^\p{L}\p{N}]+/u, "")
     .replace(/[.;,]+$/g, "")
@@ -134,11 +145,18 @@ function extraerTituloGenerico(texto: string): string {
 function extraerDetalleGenerico(texto: string): string | null {
   const titulo = extraerTituloGenerico(texto);
   const numero = extraerNumero(texto);
-  const restante = texto
-    .replace(new RegExp(`^\\s*(?:${escapeRegExp(numero)}\\s*-\\s*)?`, "i"), "")
-    .replace(new RegExp(`^${escapeRegExp(titulo)}`, "i"), "")
-    .replace(/^[^:]*:\s*/i, "")
+  const textoSinNumero = numero
+    ? texto.replace(new RegExp(`^\\s*${escapeRegExp(numero)}\\s*-\\s*`, "i"), "")
+    : texto;
+  const textoSinTipo = textoSinNumero.replace(/^[^:]+:\s*/i, "");
+  const restante = textoSinTipo
+    .slice(titulo.length)
     .split(/\s*(?:Autores:|autores:)/i)[0]
+    .replace(/^\s*(?:Colombia|México|Brasil|Ecuador|Argentina|Perú|Chile|Venezuela|España|Estados Unidos|Canadá|Portugal|Uruguay|Paraguay|Bolivia|Costa Rica|Panamá|Guatemala)\s*,\s*(?:19|20)\d{2}\s*,?\s*/i, "")
+    .replace(/Sitio web:\s*https?:\/\/[^\s,]+/i, "")
+    .replace(/Nombre del proyecto:\s*(?=Institución financiadora:)/i, "")
+    .replace(/,\s*,/g, ",")
+    .replace(/\s{2,}/g, " ")
     .replace(/^[\s:,.\-]+|[\s:,.\-]+$/g, "")
     .trim();
 
@@ -146,8 +164,29 @@ function extraerDetalleGenerico(texto: string): string | null {
 }
 
 function extraerDoiDesdeTexto(texto: string): string | null {
-  const match = texto.match(/(?:https?:\/\/)?(?:dx\.)?doi\.org\/(10\.\d{4,}\/\S+)|(?:^|\s)(10\.\d{4,}\/\S+)/i);
-  return match ? (match[1] ?? match[0].replace(/^.*?(10\.\d{4,}\/\S+)$/i, "$1")).replace(/[.,;)\]>\]]+$/, "") : null;
+  const match = texto.match(/\b(10\.\d{4,}\/\S+)/i);
+  return match ? match[1].replace(/[.,;)\]>\]]+$/, "") : null;
+}
+
+function extraerRevista(texto: string): string {
+  const match = texto.match(/\b(?:Colombia|México|Brasil|Ecuador|Argentina|Perú|Chile|Venezuela|España|Estados Unidos|Canadá|Portugal|Uruguay|Paraguay|Bolivia|Costa Rica|Panamá|Guatemala)\s*,\s*(.*?)(?=\s+(?:ISSN:|(?:19|20)\d{2}\b)|$)/i);
+  return match?.[1]?.trim() ?? "";
+}
+
+function extraerSitioWeb(texto: string): string | null {
+  const match = texto.match(/Sitio web:\s*(https?:\/\/[^\s,]+)/i);
+  if (!match) return null;
+
+  try {
+    const url = new URL(match[1].replace(/[.;)]+$/, ""));
+    return url.protocol === "http:" || url.protocol === "https:" ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function extraerIsbn(texto: string): string | null {
+  return texto.match(/ISBN:\s*([0-9Xx-]{10,20})/i)?.[1] ?? null;
 }
 
 function escapeRegExp(value: string): string {
@@ -191,6 +230,8 @@ function extraerItemsSeccion($: cheerio.CheerioAPI, headerTd: Element): ScientiI
     const anio = extraerAnio(textoCompleto);
     const autores = extraerAutores(textoCompleto);
     const detalle = extraerDetalleGenerico(textoCompleto);
+    const isbn = extraerIsbn(textoCompleto);
+    const sitioWeb = extraerSitioWeb(textoCompleto);
     let doi: string | null = extraerDoiDesdeTexto(textoCompleto);
 
     if (!doi) {
@@ -214,7 +255,9 @@ function extraerItemsSeccion($: cheerio.CheerioAPI, headerTd: Element): ScientiI
       anio,
       autores,
       doi,
-      url: doi ? urlDoi(doi) : null,
+      url: doi ? urlDoi(doi) : sitioWeb,
+      isbn,
+      sitioWeb,
     });
   });
 
@@ -247,7 +290,8 @@ function urlDoi(doi: string): string {
 // Consulta Crossref para un DOI dado y devuelve la publicaciÃ³n enriquecida.
 // Retorna null si Crossref no tiene datos o falla la peticiÃ³n.
 async function enriquecerConCrossref(
-  scienti: PublicacionScienti
+  scienti: PublicacionScienti,
+  signal: AbortSignal
 ): Promise<Publicacion> {
   const { doi } = scienti;
 
@@ -273,6 +317,7 @@ async function enriquecerConCrossref(
 
   try {
     const res = await fetch(`${CROSSREF_BASE}/${encodeURIComponent(doi)}`, {
+      signal,
       headers: {
         // Buena prÃ¡ctica: Crossref pide identificarse con un User-Agent descriptivo.
         "User-Agent": "GIEU-Site/1.0 (https://grupoinformaticaeducativa.uninorte.edu.co; mailto:cvieira@uninorte.edu.co)",
@@ -354,14 +399,13 @@ async function enriquecerConCrossref(
       url: doi ? urlDoi(doi) : SCIENTI_URL,
     };
 
-    crossrefCache.set(doi, publicacion);
     return publicacion;
   }
 }
 
 // ---------- endpoint --------------------------------------------------------
 
-async function obtenerPublicacionesDeSeccion($: cheerio.CheerioAPI, headerTd: Element): Promise<Publicacion[]> {
+async function obtenerPublicacionesDeSeccion($: cheerio.CheerioAPI, headerTd: Element, signal: AbortSignal): Promise<Publicacion[]> {
   const filaEncabezado = $(headerTd).closest("tr");
   const filasSeccion = filaEncabezado.nextAll("tr");
   const publicacionesScienti: PublicacionScienti[] = [];
@@ -411,7 +455,7 @@ async function obtenerPublicacionesDeSeccion($: cheerio.CheerioAPI, headerTd: El
     publicacionesScienti.push({
       numero,
       titulo,
-      revistaPais: textoCompleto.split(/\s*,\s*(?:Colombia|México|Brasil|Ecuador|Argentina|Perú|Chile|Venezuela|España|Estados Unidos|Canadá|Portugal|Uruguay|Paraguay|Bolivia|Costa Rica|Panamá|Guatemala)\s*,/i)[0] ?? "",
+      revistaPais: extraerRevista(textoCompleto),
       anio,
       autores,
       doi,
@@ -422,7 +466,7 @@ async function obtenerPublicacionesDeSeccion($: cheerio.CheerioAPI, headerTd: El
   const publicaciones: Publicacion[] = [];
   for (let i = 0; i < publicacionesScienti.length; i += CONCURRENCIA) {
     const lote = publicacionesScienti.slice(i, i + CONCURRENCIA);
-    const resultados = await Promise.all(lote.map(enriquecerConCrossref));
+    const resultados = await Promise.all(lote.map((publicacion) => enriquecerConCrossref(publicacion, signal)));
     publicaciones.push(...resultados);
   }
 
@@ -434,13 +478,28 @@ function crearCatalogoVacio(): ScientiCatalogo {
     publicaciones: [],
     software: [],
     capitulosLibro: [],
+    librosPublicados: [],
     librosFormacion: [],
     librosDivulgacion: [],
+    otrosProductosTecnologicos: [],
   };
 }
 
 export async function obtenerSeccionesScienti(forzarRecarga = false): Promise<ScientiCatalogo> {
   const ahora = Date.now();
+async function cargarSeccionesScienti(): Promise<ScientiCatalogo> {
+  try {
+    const signal = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+    const response = await fetch(SCIENTI_URL, { signal });
+    if (!response.ok) {
+      throw new Error(`No se pudo consultar Scienti: ${response.status}`);
+    }
+
+    const buffer = await response.arrayBuffer();
+    const html = new TextDecoder("iso-8859-1").decode(buffer);
+    const $ = cheerio.load(html);
+
+    const catalogo: ScientiCatalogo = crearCatalogoVacio();
 
   // 1. Si tenemos datos en caché válidos y no se fuerza recarga, responder en < 1ms
   if (!forzarRecarga && catalogoCache && ahora - catalogoCache.timestamp < TTL_CATALOGO_MS) {
@@ -451,6 +510,10 @@ export async function obtenerSeccionesScienti(forzarRecarga = false): Promise<Sc
   if (promesaEnVuelo) {
     return await promesaEnVuelo;
   }
+      if (encabezado.includes("publicad") && !encabezado.includes("capitulo") && !encabezado.includes("libros de formacion") && !encabezado.includes("libros de divulgacion") && !encabezado.includes("libros publicados")) {
+        const publicacionesSeccion = await obtenerPublicacionesDeSeccion($, header, signal);
+        catalogo.publicaciones.push(...publicacionesSeccion);
+      }
 
   // 3. Iniciar consulta a Scienti y Crossref
   promesaEnVuelo = (async () => {
@@ -514,10 +577,56 @@ export async function obtenerSeccionesScienti(forzarRecarga = false): Promise<Sc
       return crearCatalogoVacio();
     } finally {
       promesaEnVuelo = null;
+      if (encabezado === "libros publicados" || encabezado === "otros libros publicados") {
+        catalogo.librosPublicados.push(...extraerItemsSeccion($, header));
+      }
+
+      if (encabezado.includes("libros de formacion") || encabezado.includes("libros de formación")) {
+        catalogo.librosFormacion = extraerItemsSeccion($, header);
+      }
+
+      if (encabezado.includes("libros de divulgacion") || encabezado.includes("libros de divulgación")) {
+        catalogo.librosDivulgacion = extraerItemsSeccion($, header);
+      }
+
+      if (encabezado.includes("otros productos tecnologicos")) {
+        catalogo.otrosProductosTecnologicos = extraerItemsSeccion($, header);
+      }
+    }
+
+    if (!catalogo.publicaciones.length && !catalogo.software.length && !catalogo.capitulosLibro.length && !catalogo.librosPublicados.length && !catalogo.librosFormacion.length && !catalogo.librosDivulgacion.length && !catalogo.otrosProductosTecnologicos.length) {
+      throw new Error("Scienti no devolvió secciones reconocibles");
     }
   })();
 
   return await promesaEnVuelo;
+    catalogoCache = catalogo;
+    catalogoCacheTime = Date.now();
+    siguienteIntento = 0;
+    return catalogo;
+  } catch (error) {
+    console.error("Error al consultar Scienti; se usará el último catálogo disponible.", error);
+    siguienteIntento = Date.now() + RETRY_AFTER_FAILURE_MS;
+    return catalogoCache ?? crearCatalogoVacio();
+  }
+}
+
+export async function obtenerSeccionesScienti(): Promise<ScientiCatalogo> {
+  if (catalogoCache && Date.now() - catalogoCacheTime < CATALOG_TTL_MS) {
+    return catalogoCache;
+  }
+
+  if (Date.now() < siguienteIntento) {
+    return catalogoCache ?? crearCatalogoVacio();
+  }
+
+  if (!cargaCatalogoEnCurso) {
+    cargaCatalogoEnCurso = cargarSeccionesScienti().finally(() => {
+      cargaCatalogoEnCurso = null;
+    });
+  }
+
+  return cargaCatalogoEnCurso;
 }
 
 export const prerender = false;

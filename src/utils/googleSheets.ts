@@ -10,6 +10,10 @@ export interface Proyecto {
   url_vermas?: string;
 }
 
+// Dirección de la página de detalle: "Programación para niños" -> "programacion-para-ninos"
+export const slugProyecto = (titulo: string) =>
+  titulo.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
 export interface Investigacion {
   titulo: string;
   descripcion: string;
@@ -21,6 +25,22 @@ export interface Investigacion {
   color_borde: string;
   color_boton: string;
   url_detalles?: string;
+}
+
+export interface MiembroEquipo {
+  nombre: string;
+  apellido: string;
+  cargo: string;
+  nivel: string; // 'lider', 'investigador', 'estudiante'
+  titulo_academico: string;
+  especialidad: string;
+  descripcion: string;
+  areas_expertise: string[];
+  programa_estudio?: string; // Solo para estudiantes
+  imagen_url?: string;
+  email?: string;
+  perfil_academico?: string; // Google Scholar, ResearchGate, etc.
+  color_gradiente: string;
 }
 
 export async function obtenerProyectos(): Promise<Proyecto[]> {
@@ -63,6 +83,27 @@ export async function obtenerInvestigaciones(): Promise<Investigacion[]> {
     console.error('Error al obtener investigaciones:', error);
     // Retornar datos de respaldo en caso de error
     return obtenerInvestigacionesRespaldo();
+  }
+}
+
+export async function obtenerEquipo(): Promise<MiembroEquipo[]> {
+  try {
+    // URL de Google Sheets para el equipo
+    // Deberás reemplazar esta URL con la de tu hoja de equipo
+    const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vThJywK7bgJXL1v9SCmERq9EH-HPVkUadu1MT1UWtgLcO9iM6yxXRymB1zDu-zF9jT_K104MkQW1Cof/pub?output=csv';
+    
+    const response = await fetch(SHEET_URL);
+    
+    if (!response.ok) {
+      throw new Error(`Error al obtener equipo: ${response.status}`);
+    }
+    
+    const csvText = await response.text();
+    return parsearCSVEquipo(csvText);
+  } catch (error) {
+    console.error('Error al obtener equipo:', error);
+    // Retornar datos de respaldo en caso de error
+    return obtenerEquipoRespaldo();
   }
 }
 
@@ -129,6 +170,42 @@ function parsearCSVInvestigaciones(csvText: string): Investigacion[] {
   }
   
   return investigaciones;
+}
+
+function parsearCSVEquipo(csvText: string): MiembroEquipo[] {
+  const lines = csvText.split('\n');
+  const headers = lines[0].split(',').map(header => header.trim().replace(/"/g, ''));
+  
+  const miembros: MiembroEquipo[] = [];
+  
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.trim() === '') continue;
+    
+    const values = parsearLineaCSV(line);
+    
+    if (values.length >= 10) {
+      const miembro: MiembroEquipo = {
+        nombre: values[0] || '',
+        apellido: values[1] || '',
+        cargo: values[2] || '',
+        nivel: values[3] || 'investigador',
+        titulo_academico: values[4] || '',
+        especialidad: values[5] || '',
+        descripcion: values[6] || '',
+        areas_expertise: values[7] ? values[7].split(',').map(area => area.trim()) : [],
+        programa_estudio: values[8] || undefined,
+        imagen_url: values[9] || undefined,
+        email: values[10] || undefined,
+        perfil_academico: values[11] || undefined,
+        color_gradiente: values[12] || 'from-Shiraz-400 to-daisy_bush-400',
+      };
+      
+      miembros.push(miembro);
+    }
+  }
+  
+  return miembros;
 }
 
 function parsearLineaCSV(line: string): string[] {
@@ -229,6 +306,134 @@ function obtenerInvestigacionesRespaldo(): Investigacion[] {
       color_borde: "cod_gray-600",
       color_boton: "cod_gray-600",
       url_detalles: "https://ejemplo.com/investigacion-ia-evaluacion"
+    }
+  ];
+}
+
+function obtenerEquipoRespaldo(): MiembroEquipo[] {
+  return [
+    // Líderes del grupo
+    {
+      nombre: "María Elena",
+      apellido: "Rodríguez",
+      cargo: "Directora del Grupo",
+      nivel: "lider",
+      titulo_academico: "Doctora en Educación",
+      especialidad: "Tecnología Educativa",
+      descripcion: "Especialista en tecnología educativa y metodologías de enseñanza STEM con más de 15 años de experiencia",
+      areas_expertise: ["Educación STEM", "Tecnología Educativa", "Metodologías Activas"],
+      imagen_url: "",
+      email: "maria.rodriguez@uninorte.edu.co",
+      perfil_academico: "https://scholar.google.com/citations?user=ejemplo",
+      color_gradiente: "from-Shiraz-400 to-daisy_bush-400"
+    },
+    {
+      nombre: "Carlos Alberto",
+      apellido: "Mendoza",
+      cargo: "Coordinador Académico",
+      nivel: "lider",
+      titulo_academico: "Doctor en Ciencias de la Computación",
+      especialidad: "Pedagogía Digital",
+      descripcion: "Experto en pedagogía digital y desarrollo de competencias matemáticas",
+      areas_expertise: ["Pedagogía Digital", "Matemáticas", "Programación Educativa"],
+      imagen_url: "",
+      email: "carlos.mendoza@uninorte.edu.co",
+      perfil_academico: "https://www.researchgate.net/profile/ejemplo",
+      color_gradiente: "from-daisy_bush-400 to-Shiraz-400"
+    },
+    {
+      nombre: "Ana Sofía",
+      apellido: "Herrera",
+      cargo: "Coordinadora de Investigación",
+      nivel: "lider",
+      titulo_academico: "Doctora en Psicología Educativa",
+      especialidad: "Inclusión Educativa",
+      descripcion: "Especialista en inclusión educativa y equidad en STEM",
+      areas_expertise: ["Inclusión Educativa", "Equidad STEM", "Psicología Educativa"],
+      imagen_url: "",
+      email: "ana.herrera@uninorte.edu.co",
+      perfil_academico: "https://scholar.google.com/citations?user=ejemplo2",
+      color_gradiente: "from-Shiraz-400 to-daisy_bush-400"
+    },
+    // Investigadores
+    {
+      nombre: "Miguel",
+      apellido: "Castro",
+      cargo: "Investigador",
+      nivel: "investigador",
+      titulo_academico: "Magister en Educación",
+      especialidad: "Tecnologías Emergentes",
+      descripcion: "Especialista en integración de tecnologías emergentes en el aula",
+      areas_expertise: ["Realidad Virtual", "Inteligencia Artificial", "EdTech"],
+      imagen_url: "",
+      email: "miguel.castro@uninorte.edu.co",
+      color_gradiente: "from-daisy_bush-400 to-Shiraz-400"
+    },
+    {
+      nombre: "Andrea",
+      apellido: "Infante",
+      cargo: "Investigadora",
+      nivel: "investigador",
+      titulo_academico: "Doctora en Ciencias",
+      especialidad: "Análisis de Datos",
+      descripcion: "Experta en análisis de datos educativos y learning analytics",
+      areas_expertise: ["Learning Analytics", "Data Science", "Estadística Educativa"],
+      imagen_url: "",
+      email: "andrea.infante@uninorte.edu.co",
+      color_gradiente: "from-Shiraz-400 to-daisy_bush-400"
+    },
+    {
+      nombre: "Ricardo",
+      apellido: "Bermúdez",
+      cargo: "Investigador",
+      nivel: "investigador",
+      titulo_academico: "Ingeniero de Software",
+      especialidad: "Desarrollo Educativo",
+      descripcion: "Desarrollador de plataformas educativas y herramientas digitales",
+      areas_expertise: ["Desarrollo Web", "Apps Educativas", "UX/UI"],
+      imagen_url: "",
+      email: "ricardo.bermudez@uninorte.edu.co",
+      color_gradiente: "from-daisy_bush-400 to-Shiraz-400"
+    },
+    {
+      nombre: "Laura",
+      apellido: "Sánchez",
+      cargo: "Investigadora",
+      nivel: "investigador",
+      titulo_academico: "Psicóloga Educativa",
+      especialidad: "Cognición y Aprendizaje",
+      descripcion: "Especialista en procesos cognitivos y estrategias de aprendizaje",
+      areas_expertise: ["Neuroeducación", "Metacognición", "Evaluación"],
+      imagen_url: "",
+      email: "laura.sanchez@uninorte.edu.co",
+      color_gradiente: "from-Shiraz-400 to-daisy_bush-400"
+    },
+    // Estudiantes
+    {
+      nombre: "Estudiante",
+      apellido: "Pregrado 1",
+      cargo: "Asistente de Investigación",
+      nivel: "estudiante",
+      titulo_academico: "Estudiante",
+      especialidad: "Ingeniería de Sistemas",
+      descripcion: "Estudiante de pregrado apoyando proyectos de desarrollo",
+      areas_expertise: ["Programación", "Bases de Datos"],
+      programa_estudio: "Pregrado - Ingeniería de Sistemas",
+      imagen_url: "",
+      color_gradiente: "from-cod_gray-400 to-cod_gray-500"
+    },
+    {
+      nombre: "Estudiante",
+      apellido: "Maestría 1",
+      cargo: "Investigador Junior",
+      nivel: "estudiante",
+      titulo_academico: "Estudiante de Maestría",
+      especialidad: "Educación con énfasis en TIC",
+      descripcion: "Estudiante de maestría investigando gamificación en matemáticas",
+      areas_expertise: ["Gamificación", "Diseño Instruccional"],
+      programa_estudio: "Maestría en Educación",
+      imagen_url: "",
+      color_gradiente: "from-cod_gray-400 to-cod_gray-500"
     }
   ];
 }

@@ -1,0 +1,258 @@
+---
+import LeaderCard from './LeaderCard.astro';
+import type { Person } from '../../utils/peopleInfo';
+
+interface Props {
+  leaders: Person[];
+}
+
+const { leaders } = Astro.props;
+const hasMultipleLeaders = leaders.length > 1;
+---
+
+<!-- Render the carousel only when leaders are available -->
+{leaders.length > 0 && (
+  <section
+    class="relative bg-white py-10 shadow-2xl shadow-daisy_bush-400"
+    aria-label="Líderes del equipo"
+    data-leaders-carousel
+  >
+    <!-- Limit the carousel width and hide overflowing slides -->
+    <div class="mx-auto w-full max-w-[1600px] overflow-hidden px-6 lg:px-16">
+
+      <!-- Movable track containing all slides -->
+      <div
+        class="flex transition-transform duration-700 ease-in-out"
+        data-carousel-track
+      >
+        <!-- Generate one slide for each leader -->
+        {leaders.map((leader) => (
+          <div
+            class="w-full min-w-full shrink-0 lg:px-[100px]"
+            data-carousel-slide
+          >
+            <LeaderCard leader={leader} />
+          </div>
+        ))}
+
+        <!-- Clone the first slide to create a continuous loop -->
+        {hasMultipleLeaders && (
+          <div
+            class="w-full min-w-full shrink-0 lg:px-[100px]"
+            data-carousel-slide
+            data-carousel-clone
+            aria-hidden="true"
+          >
+            <LeaderCard leader={leaders[0]} />
+          </div>
+        )}
+      </div>
+    </div>
+
+    <!-- Navigation controls: arrows and position dots -->
+    {hasMultipleLeaders && (
+      <div class="mt-8 flex items-center justify-center gap-6">
+        <button
+          type="button"
+          class="rounded-full p-2 text-cod_gray-700 transition-colors duration-300 hover:text-daisy_bush-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-daisy_bush-700"
+          aria-label="Líder anterior"
+          data-carousel-prev
+        >
+          <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
+
+        <!-- One button per leader -->
+        <div class="flex items-center gap-3">
+          {leaders.map((leader, index) => (
+            <button
+              type="button"
+              class:list={[
+                'relative h-3 w-3 cursor-pointer rounded-full transition-colors duration-300',
+                // Larger click area than the visible dot
+                "after:absolute after:-inset-1.5 after:content-['']",
+                'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-daisy_bush-700',
+                index === 0 ? 'bg-daisy_bush-700' : 'bg-cod_gray-700',
+              ]}
+              aria-label={`Ir a ${leader.name}`}
+              aria-current={index === 0 ? 'true' : 'false'}
+              data-carousel-dot
+            ></button>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          class="rounded-full p-2 text-cod_gray-700 transition-colors duration-300 hover:text-daisy_bush-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-daisy_bush-700"
+          aria-label="Siguiente líder"
+          data-carousel-next
+        >
+          <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </button>
+      </div>
+    )}
+  </section>
+)}
+
+<script>
+  const AUTOPLAY_DELAY_MS = 5000;
+  // Must match the duration-700 class of the track
+  const TRANSITION_MS = 700;
+  const ACTIVE_DOT_CLASS = 'bg-daisy_bush-700';
+  const INACTIVE_DOT_CLASS = 'bg-cod_gray-700';
+
+  function initLeadersCarousel(root: HTMLElement) {
+    const track = root.querySelector<HTMLElement>('[data-carousel-track]');
+    const slides = root.querySelectorAll<HTMLElement>('[data-carousel-slide]');
+    const dots = root.querySelectorAll<HTMLElement>('[data-carousel-dot]');
+    const prevButton = root.querySelector<HTMLButtonElement>('[data-carousel-prev]');
+    const nextButton = root.querySelector<HTMLButtonElement>('[data-carousel-next]');
+
+    // Exclude the cloned slide from the real slide count
+    const hasClone = root.querySelector('[data-carousel-clone]') !== null;
+    const realSlideCount = hasClone ? slides.length - 1 : slides.length;
+
+    // Do not start the carousel when there are no slides to rotate
+    if (!track || realSlideCount <= 1) return;
+
+    let currentIndex = 0;
+    let isAnimating = false;
+    let intervalId: ReturnType<typeof setInterval> | undefined;
+    let animationTimeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    // --- Position ---
+
+    const setPosition = (index: number) => {
+      currentIndex = index;
+      track.style.transform = `translateX(-${currentIndex * 100}%)`;
+    };
+
+    // Run a change without animation, then restore the transition
+    const withoutTransition = (change: () => void) => {
+      track.style.transitionDuration = '0ms';
+      change();
+      void track.offsetHeight; // Force reflow so the change is applied instantly
+      track.style.transitionDuration = '';
+    };
+
+    // --- Dots ---
+
+    const updateDots = () => {
+      // On the clone, the active dot is still the first one
+      const activeIndex = currentIndex % realSlideCount;
+
+      dots.forEach((dot, index) => {
+        const isActive = index === activeIndex;
+        dot.classList.toggle(ACTIVE_DOT_CLASS, isActive);
+        dot.classList.toggle(INACTIVE_DOT_CLASS, !isActive);
+        dot.setAttribute('aria-current', isActive ? 'true' : 'false');
+      });
+    };
+
+    // --- Navigation ---
+
+    // Release the lock and reset to the first slide if we ended on the clone
+    const finishAnimation = () => {
+      isAnimating = false;
+
+      if (currentIndex >= realSlideCount) {
+        withoutTransition(() => setPosition(0));
+      }
+    };
+
+    const animateTo = (index: number) => {
+      isAnimating = true;
+      setPosition(index);
+      updateDots();
+
+      // A timer (not transitionend) guarantees the lock is always released
+      clearTimeout(animationTimeoutId);
+      animationTimeoutId = setTimeout(finishAnimation, TRANSITION_MS);
+    };
+
+    const goToNext = () => {
+      if (isAnimating) return;
+      animateTo(currentIndex + 1);
+    };
+
+    const goToPrevious = () => {
+      if (isAnimating) return;
+
+      // From the first slide, jump instantly to the clone and animate backwards
+      if (currentIndex === 0) {
+        withoutTransition(() => setPosition(realSlideCount));
+      }
+
+      animateTo(currentIndex - 1);
+    };
+
+    const goToIndex = (index: number) => {
+      // Ignore the click during a transition or when already on that slide
+      if (isAnimating || index === currentIndex) return;
+      animateTo(index);
+    };
+
+    // --- Autoplay ---
+
+    const startAutoplay = () => {
+      if (intervalId) return;
+      intervalId = setInterval(goToNext, AUTOPLAY_DELAY_MS);
+    };
+
+    const stopAutoplay = () => {
+      clearInterval(intervalId);
+      intervalId = undefined;
+    };
+
+    // Restart the timer only if it was running (not while hovering)
+    const restartAutoplay = () => {
+      if (!intervalId) return;
+      stopAutoplay();
+      startAutoplay();
+    };
+
+    // --- Events ---
+
+    nextButton?.addEventListener('click', () => {
+      goToNext();
+      restartAutoplay();
+    });
+
+    prevButton?.addEventListener('click', () => {
+      goToPrevious();
+      restartAutoplay();
+    });
+
+    dots.forEach((dot, index) => {
+      dot.addEventListener('click', () => {
+        goToIndex(index);
+        restartAutoplay();
+      });
+    });
+
+    root.addEventListener('mouseenter', stopAutoplay);
+    root.addEventListener('mouseleave', startAutoplay);
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        stopAutoplay();
+        return;
+      }
+
+      // Timers can be throttled in background tabs, so settle the state manually
+      clearTimeout(animationTimeoutId);
+      finishAnimation();
+      updateDots();
+      startAutoplay();
+    });
+
+    startAutoplay();
+  }
+
+  document
+    .querySelectorAll<HTMLElement>('[data-leaders-carousel]')
+    .forEach(initLeadersCarousel);
+</script>

@@ -1,0 +1,47 @@
+---
+import type { CollectionEntry } from "astro:content";
+interface Props {
+    project: CollectionEntry<"projects">;
+    showSummary: boolean;
+}
+
+const { project, showSummary } = Astro.props;
+const base_url = import.meta.env.BASE_URL;
+---
+
+<a
+    class="project-card"
+    href={`${base_url}/projects/${project.slug}`}
+    target="_blank"
+>
+    <div
+        class="px-5 py-8 shadow-lg rounded-xl gap-5 flex flex-col w-full max-w-[380px]"
+    >
+        <div class="overflow-hidden rounded-lg">
+            <img
+                src={`${base_url}/${project.data.cover}`}
+                alt="Cover"
+                class="block"
+            />
+        </div>
+        <h3 class="font-bold truncate">
+            {project.data.title}
+        </h3>
+
+        {showSummary && <p class="line-clamp-3">{project.data.summary}</p>}
+    </div>
+</a>
+
+<style>
+    a.project-card {
+        @apply cursor-pointer transition-all duration-300 hover:opacity-90 hover:shadow-lg;
+    }
+
+    a.project-card img {
+        @apply w-full transition-all duration-300;
+    }
+
+    a.project-card:hover img {
+        @apply hover:scale-110;
+    }
+</style>

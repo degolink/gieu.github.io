@@ -1,0 +1,45 @@
+---
+interface Props {
+  currentPage: number;
+  totalPages: number;
+  label: string;
+  hrefForPage: (page: number) => string;
+}
+
+const { currentPage, totalPages, label, hrefForPage } = Astro.props;
+const firstVisible = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
+const visiblePages = Array.from(
+  { length: Math.min(5, totalPages) },
+  (_, index) => firstVisible + index
+);
+---
+
+{totalPages > 1 && (
+  <nav class="mt-10 flex flex-wrap items-center justify-center gap-2" aria-label={label}>
+    {currentPage > 1 ? (
+      <a href={hrefForPage(currentPage - 1)} class="min-h-10 px-4 py-2 rounded-lg bg-white text-daisy_bush-700 font-medium hover:bg-daisy_bush-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-daisy_bush-700">
+        Anterior
+      </a>
+    ) : (
+      <span class="min-h-10 px-4 py-2 text-cod_gray-500" aria-disabled="true">Anterior</span>
+    )}
+
+    {visiblePages.map((page) => page === currentPage ? (
+      <span class="min-w-10 min-h-10 px-3 py-2 rounded-lg bg-daisy_bush-700 text-white text-center font-semibold" aria-current="page">
+        {page}
+      </span>
+    ) : (
+      <a href={hrefForPage(page)} class="min-w-10 min-h-10 px-3 py-2 rounded-lg bg-white text-daisy_bush-700 text-center font-medium hover:bg-daisy_bush-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-daisy_bush-700" aria-label={`Ir a la página ${page}`}>
+        {page}
+      </a>
+    ))}
+
+    {currentPage < totalPages ? (
+      <a href={hrefForPage(currentPage + 1)} class="min-h-10 px-4 py-2 rounded-lg bg-white text-daisy_bush-700 font-medium hover:bg-daisy_bush-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-daisy_bush-700">
+        Siguiente
+      </a>
+    ) : (
+      <span class="min-h-10 px-4 py-2 text-cod_gray-500" aria-disabled="true">Siguiente</span>
+    )}
+  </nav>
+)}

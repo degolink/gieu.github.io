@@ -1,0 +1,42 @@
+---
+import type { CollectionEntry } from "astro:content";
+interface Props {
+    research: CollectionEntry<"researchs">;
+}
+
+// `post` will match your 'blog' collection schema type
+const { research } = Astro.props;
+---
+
+<a class="research-card" href={research.data.url} target="_blank">
+    <div
+        class="px-5 py-8 shadow-lg rounded-xl gap-5 flex flex-col w-full max-w-[800px]"
+    >
+        <h3 class="text-Shiraz-700 font-bold text-xl">
+            {research.data.title}
+        </h3>
+
+        <hr class="border-1 border-cod_gray-300" />
+
+        <div class="text-cod_gray-600">
+            <p class="font-extrabold">
+                {research.data.author.join("; ")}
+            </p>
+
+            <p>
+                {research.data.title}. {research.data.journal}, vol. {
+                    research.data.volume
+                }, núm. {research.data.number}, {research.data.year}
+            </p>
+        </div>
+        <div class="text-cod_gray-600">
+            <p><strong>DOI:</strong>{research.data.DOI}</p>
+        </div>
+    </div>
+</a>
+
+<style>
+    a.research-card:hover {
+        @apply cursor-pointer transition-all duration-300 hover:opacity-90 hover:shadow-xl;
+    }
+</style>

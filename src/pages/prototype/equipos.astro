@@ -1,0 +1,450 @@
+---
+// PROTOTIPO DESECHABLE — no es código de producción. Borrar al decidir.
+// Pregunta: ¿cómo se ven la página de proyecto (con su equipo), la nueva /team con GrupLAC
+// y el enlace desde «¿Quiénes somos?»? Pantallas por ?screen=proyecto|team|inicio, variantes por ?variant=A|B|C.
+// Datos de GrupLAC: snapshot estático (_gruplac-mock.json), no scraping en vivo.
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import LeadersSection from "../../components/TeamPage/LeadersSection.astro";
+import MembersGrid from "../../components/TeamPage/MembersGrid.astro";
+import { leaders, members, type Person } from "../../utils/peopleInfo";
+import { obtenerProyectos } from "../../utils/googleSheets";
+import gruplac from "./_gruplac-mock.json";
+
+if (import.meta.env.PROD) return Astro.redirect("/404");
+
+const SCREENS: Record<string, string[]> = {
+    proyecto: ["F", "A", "B", "C"],
+    team: ["F", "A", "B", "C"],
+    inicio: ["B", "A"],
+};
+const NAMES: Record<string, string> = {
+    "proyecto-F": "FINAL: C + burbujas animadas",
+    "team-F": "FINAL: A + pasados por década en plegable",
+    "proyecto-A": "Hero como /team + carrusel",
+    "proyecto-B": "Ficha a dos columnas + líderes en grilla",
+    "proyecto-C": "Hero compacto + pestañas Proyecto/Equipo",
+    "team-A": "Carrusel destacados + grilla + tabla pasados",
+    "team-B": "Una sola grilla + pasados por década",
+    "team-C": "Grilla + pasados plegables en columnas",
+    "inicio-A": "Botón bajo el texto",
+    "inicio-B": "Franja de cifras con enlace",
+};
+const screen = SCREENS[Astro.url.searchParams.get("screen") ?? ""] ? Astro.url.searchParams.get("screen")! : "proyecto";
+const variants = SCREENS[screen];
+const variant = variants.includes(Astro.url.searchParams.get("variant") ?? "") ? Astro.url.searchParams.get("variant")! : variants[0];
+
+// ---- Proyecto (datos reales de la hoja si responde) ----
+const proyectos = await obtenerProyectos();
+const proyecto = proyectos.find((p) => /colombia\s*programa/i.test(p.titulo)) ?? {
+    titulo: "Colombia Programa",
+    descripcion: "(Texto de ejemplo: la hoja no tiene fila «Colombia Programa» o no respondió.)",
+    tecnologias: ["Python", "Evaluación"],
+    estado: "Activo",
+    año: "2024",
+    imagen_url: "",
+    url_vermas: "https://www.colombiaprograma.gov.co/",
+};
+const projectLeaders = leaders;
+const projectMembers = members;
+
+// ---- GrupLAC ----
+const titleCase = (s: string) =>
+    s === s.toUpperCase() ? s.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase()) : s;
+const parsed = gruplac.map(({ nombre, periodo }) => {
+    const [ini, fin] = periodo.split(" - ");
+    return { nombre: titleCase(nombre), desde: ini.split("/")[0], hasta: fin === "Actual" ? null : fin.split("/")[0], ini, fin };
+});
+const activos = parsed.filter((m) => m.hasta === null).sort((a, b) => a.ini.localeCompare(b.ini, undefined, { numeric: true }));
+const pasados = parsed.filter((m) => m.hasta !== null).sort((a, b) => b.fin.localeCompare(a.fin, undefined, { numeric: true }));
+// Tarjeta completa: se reusa la ficha de peopleInfo si el nombre coincide (primeras 2 palabras)
+const ficha = (nombre: string) => leaders.find((l) => nombre.startsWith(l.name.split(" ").slice(0, 2).join(" ")));
+const destacados: Person[] = activos.flatMap((m) => {
+    const f = ficha(m.nombre);
+    return f ? [{ ...f, name: m.nombre, role: `Integrante desde ${m.desde}` }] : [];
+});
+const sencillos: Person[] = activos.filter((m) => !ficha(m.nombre)).map((m) => ({ name: m.nombre, role: `Desde ${m.desde}` }));
+const todosActivos: Person[] = activos.map((m) => {
+    const f = ficha(m.nombre);
+    return { name: m.nombre, role: `Desde ${m.desde}`, photo: f?.photo };
+});
+const porDecada = Object.entries(
+    pasados.reduce<Record<string, typeof pasados>>((acc, m) => {
+        const d = `${m.hasta!.slice(0, 3)}0s`;
+        (acc[d] ??= []).push(m);
+        return acc;
+    }, {}),
+);
+const periodo = (m: { desde: string; hasta: string | null }) => (m.desde === m.hasta ? m.desde : `${m.desde} – ${m.hasta}`);
+---
+
+<BaseLayout title="PROTOTIPO — Equipos">
+    <main class="bg-white pb-32">
+        <!-- Barra de pantallas (prototipo) -->
+        <nav class="sticky top-0 z-50 flex justify-center gap-2 bg-yellow-200 py-2 text-sm font-semibold">
+            <span class="px-2">PROTOTIPO · pantalla:</span>
+            {Object.keys(SCREENS).map((s) => (
+                <a href={`?screen=${s}`} class:list={["rounded px-3", s === screen ? "bg-cod_gray-900 text-white" : "underline"]}>{s}</a>
+            ))}
+        </nav>
+
+        {/* ===================== PROYECTO ===================== */}
+        {screen === "proyecto" && variant === "A" && (
+            <>
+                <section class="relative isolate mb-14 min-h-[400px] overflow-hidden bg-gradient-to-br from-daisy_bush-900 via-daisy_bush-800 to-Shiraz-800 text-cod_gray-50">
+                    <div class="absolute -left-20 -top-16 h-64 w-64 rounded-full bg-daisy_bush-400/20 blur-3xl" aria-hidden="true"></div>
+                    <div class="absolute -right-24 top-16 h-80 w-80 rounded-full bg-Shiraz-400/20 blur-3xl" aria-hidden="true"></div>
+                    <div class="relative z-10 mx-auto flex min-h-[400px] max-w-[1140px] flex-col items-center justify-center px-6 py-10 text-center">
+                        <p class="text-sm text-cod_gray-300"><a href="/web/projects" class="underline">Proyectos</a> / {proyecto.titulo}</p>
+                        <h1 class="mt-4 text-4xl font-bold sm:text-6xl">{proyecto.titulo}</h1>
+                        <p class="mx-auto mt-6 max-w-2xl text-lg text-cod_gray-200">{proyecto.descripcion}</p>
+                        <div class="mt-6 flex flex-wrap justify-center gap-2 text-sm">
+                            <span class="rounded-full bg-white/15 px-3 py-1">Estado: {proyecto.estado}</span>
+                            <span class="rounded-full bg-white/15 px-3 py-1">Año: {proyecto.año}</span>
+                            {proyecto.tecnologias.map((t) => <span class="rounded-full bg-white/15 px-3 py-1">{t}</span>)}
+                        </div>
+                        {proyecto.url_vermas && (
+                            <a href={proyecto.url_vermas} target="_blank" rel="noopener noreferrer" class="mt-8 rounded-xl bg-white px-6 py-3 font-semibold text-daisy_bush-800 hover:scale-105 transition">Ver más ↗</a>
+                        )}
+                    </div>
+                </section>
+                <h2 class="mb-8 text-center text-3xl font-bold text-daisy_bush-700">Equipo del proyecto</h2>
+                <LeadersSection leaders={projectLeaders} />
+                <MembersGrid members={projectMembers} />
+            </>
+        )}
+
+        {screen === "proyecto" && variant === "B" && (
+            <>
+                <section class="mx-auto grid max-w-[1140px] gap-10 px-6 py-14 lg:grid-cols-2">
+                    <div class="flex aspect-video items-center justify-center rounded-2xl bg-gradient-to-br from-daisy_bush-700 to-Shiraz-700 text-white">
+                        {proyecto.imagen_url ? <img src={proyecto.imagen_url} alt="" class="h-full w-full rounded-2xl object-cover" /> : <span class="text-2xl font-bold">{proyecto.titulo}</span>}
+                    </div>
+                    <div class="flex flex-col justify-center gap-5">
+                        <p class="text-sm text-cod_gray-500"><a href="/web/projects" class="underline">Proyectos</a> / {proyecto.titulo}</p>
+                        <h1 class="text-4xl font-bold text-cod_gray-900">{proyecto.titulo}</h1>
+                        <p class="text-lg text-cod_gray-700">{proyecto.descripcion}</p>
+                        <dl class="grid grid-cols-2 gap-3 text-sm">
+                            <div class="rounded-xl bg-cod_gray-100 p-3"><dt class="text-cod_gray-500">Estado</dt><dd class="font-semibold">{proyecto.estado}</dd></div>
+                            <div class="rounded-xl bg-cod_gray-100 p-3"><dt class="text-cod_gray-500">Año</dt><dd class="font-semibold">{proyecto.año}</dd></div>
+                        </dl>
+                        {proyecto.url_vermas && (
+                            <a href={proyecto.url_vermas} target="_blank" rel="noopener noreferrer" class="w-fit rounded-xl bg-gradient-to-r from-Shiraz-600 to-Shiraz-700 px-6 py-3 font-medium text-white">Ver más ↗</a>
+                        )}
+                    </div>
+                </section>
+                <section class="bg-cod_gray-100 px-6 py-16">
+                    <h2 class="mb-10 text-center text-3xl font-bold text-daisy_bush-700">Equipo del proyecto</h2>
+                    <h3 class="mx-auto mb-6 max-w-[1300px] text-xl font-bold text-cod_gray-800">Líderes</h3>
+                    <div class="mx-auto grid max-w-[1300px] gap-6 md:grid-cols-2 lg:grid-cols-3">
+                        {projectLeaders.map((l) => (
+                            <article class="rounded-2xl bg-white p-6 shadow">
+                                <div class="flex items-center gap-4">
+                                    {l.photo && <img src={l.photo} alt={`Foto de ${l.name}`} class="h-20 w-20 rounded-full bg-daisy_bush-400 object-cover object-top" />}
+                                    <div><p class="font-bold text-daisy_bush-700">{l.name}</p><p class="text-sm font-bold text-cod_gray-700">{l.role}</p></div>
+                                </div>
+                                <p class="mt-4 line-clamp-4 text-sm text-cod_gray-700">{l.description}</p>
+                            </article>
+                        ))}
+                    </div>
+                </section>
+                <MembersGrid members={projectMembers} />
+            </>
+        )}
+
+        {screen === "proyecto" && variant === "F" && (
+            <>
+                <section class="relative isolate overflow-hidden bg-gradient-to-br from-daisy_bush-900 via-daisy_bush-800 to-Shiraz-800 px-6 py-16 text-white" data-bubbles>
+                    <!-- Burbujas suaves: degradado radial en vez de filter blur, para que moverlas no repinte -->
+                    <div class="bubble bubble-soft bubble-a absolute -left-28 -top-28 h-96 w-96" aria-hidden="true"></div>
+                    <div class="bubble bubble-soft bubble-b absolute -right-32 -top-24 h-[28rem] w-[28rem]" aria-hidden="true"></div>
+                    <div class="bubble bubble-soft bubble-c absolute -bottom-40 left-1/4 h-96 w-96" aria-hidden="true"></div>
+                    <!-- Burbujas de vidrio (sin backdrop-filter: detrás solo hay degradado) -->
+                    <div class="bubble bubble-d absolute bottom-6 left-[8%] h-14 w-14 rounded-full border border-white/20 bg-white/10" aria-hidden="true"></div>
+                    <div class="bubble bubble-e absolute right-[30%] top-6 h-20 w-20 rounded-full border border-white/10 bg-white/[0.07]" aria-hidden="true"></div>
+                    <div class="bubble bubble-f absolute bottom-4 right-[6%] h-10 w-10 rounded-full border border-white/20 bg-white/10" aria-hidden="true"></div>
+                    <div class="relative z-10 mx-auto flex max-w-[1140px] flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                        <div>
+                            <p class="text-sm text-cod_gray-300"><a href="/web/projects" class="underline">Proyectos</a> / {proyecto.titulo}</p>
+                            <h1 class="mt-2 text-4xl font-bold sm:text-5xl">{proyecto.titulo}</h1>
+                        </div>
+                        {proyecto.url_vermas && <a href={proyecto.url_vermas} target="_blank" rel="noopener noreferrer" class="w-fit rounded-xl bg-white px-6 py-3 font-semibold text-daisy_bush-800 transition hover:scale-105">Ver más ↗</a>}
+                    </div>
+                </section>
+                <div class="sticky top-9 z-40 border-b bg-white">
+                    <div class="mx-auto flex max-w-[1140px] gap-6 px-6 text-sm font-semibold">
+                        <a href="#sobre" class="border-b-2 border-daisy_bush-700 py-3">Sobre el proyecto</a>
+                        <a href="#equipo" class="py-3 text-cod_gray-600">Equipo ({projectLeaders.length + projectMembers.length})</a>
+                    </div>
+                </div>
+                <section id="sobre" class="mx-auto max-w-[850px] px-6 py-12 text-lg text-cod_gray-700">
+                    <p>{proyecto.descripcion}</p>
+                    <p class="mt-4 text-sm">Estado: {proyecto.estado} · Año: {proyecto.año} · {proyecto.tecnologias.join(", ")}</p>
+                </section>
+                <section id="equipo" class="scroll-mt-24">
+                    <LeadersSection leaders={projectLeaders} />
+                    <MembersGrid members={projectMembers} />
+                </section>
+            </>
+        )}
+
+        {screen === "proyecto" && variant === "C" && (
+            <>
+                <section class="bg-gradient-to-r from-daisy_bush-900 to-Shiraz-800 px-6 py-10 text-white">
+                    <div class="mx-auto flex max-w-[1140px] flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                        <div>
+                            <p class="text-sm text-cod_gray-300"><a href="/web/projects" class="underline">Proyectos</a> / {proyecto.titulo}</p>
+                            <h1 class="mt-2 text-4xl font-bold">{proyecto.titulo}</h1>
+                        </div>
+                        {proyecto.url_vermas && <a href={proyecto.url_vermas} target="_blank" rel="noopener noreferrer" class="w-fit rounded-xl bg-white px-6 py-3 font-semibold text-daisy_bush-800">Ver más ↗</a>}
+                    </div>
+                </section>
+                <div class="sticky top-9 z-40 border-b bg-white">
+                    <div class="mx-auto flex max-w-[1140px] gap-6 px-6 text-sm font-semibold">
+                        <a href="#sobre" class="border-b-2 border-daisy_bush-700 py-3">Sobre el proyecto</a>
+                        <a href="#equipo" class="py-3 text-cod_gray-600">Equipo ({projectLeaders.length + projectMembers.length})</a>
+                    </div>
+                </div>
+                <section id="sobre" class="mx-auto max-w-[850px] px-6 py-12 text-lg text-cod_gray-700">
+                    <p>{proyecto.descripcion}</p>
+                    <p class="mt-4 text-sm">Estado: {proyecto.estado} · Año: {proyecto.año} · {proyecto.tecnologias.join(", ")}</p>
+                </section>
+                <section id="equipo" class="scroll-mt-24">
+                    <LeadersSection leaders={projectLeaders} />
+                    <MembersGrid members={projectMembers} />
+                </section>
+            </>
+        )}
+
+        {/* ===================== TEAM (GrupLAC) ===================== */}
+        {screen === "team" && (
+            <section class="mb-14 bg-gradient-to-br from-daisy_bush-900 via-daisy_bush-800 to-Shiraz-800 px-6 py-24 text-center text-cod_gray-50">
+                <h1 class="text-4xl font-bold sm:text-6xl">Conoce a nuestro equipo</h1>
+                <p class="mx-auto mt-6 max-w-2xl text-lg text-cod_gray-200">Integrantes del Grupo de Investigación en Informática Educativa, según GrupLAC.</p>
+            </section>
+        )}
+
+        {screen === "team" && variant === "F" && (
+            <>
+                <h2 class="mb-8 text-center text-3xl font-bold text-daisy_bush-700">Miembros activos</h2>
+                <LeadersSection leaders={destacados} />
+                <MembersGrid members={sencillos} />
+                <section class="mx-auto max-w-[1140px] px-6">
+                    <details class="group rounded-2xl border bg-cod_gray-100 p-6" data-animated-details>
+                        <summary class="flex cursor-pointer list-none items-center justify-between rounded-lg text-2xl font-bold text-daisy_bush-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-daisy_bush-700">
+                            Miembros pasados ({pasados.length})
+                            <span class="chevron" aria-hidden="true">▾</span>
+                        </summary>
+                        <div class="overflow-hidden" data-details-body>
+                        <div class="grid gap-8 pt-8 md:grid-cols-3">
+                            {porDecada.map(([dec, lista], i) => (
+                                <div class="decade" style={`--i:${i}`}>
+                                    <h3 class="mb-3 font-bold text-Shiraz-700">Hasta los {dec}</h3>
+                                    <ul class="space-y-1 text-sm">{lista.map((m) => <li>{m.nombre} <span class="text-cod_gray-500">· {periodo(m)}</span></li>)}</ul>
+                                </div>
+                            ))}
+                        </div>
+                        </div>
+                    </details>
+                </section>
+            </>
+        )}
+
+        {screen === "team" && variant === "A" && (
+            <>
+                <h2 class="mb-8 text-center text-3xl font-bold text-daisy_bush-700">Miembros activos</h2>
+                <LeadersSection leaders={destacados} />
+                <MembersGrid members={sencillos} />
+                <section class="mx-auto max-w-[900px] px-6">
+                    <h2 class="mb-6 text-3xl font-bold text-daisy_bush-700">Miembros pasados</h2>
+                    <table class="w-full text-left">
+                        <thead><tr class="border-b-2 text-sm text-cod_gray-500"><th class="py-2">Nombre</th><th>Período</th></tr></thead>
+                        <tbody>{pasados.map((m) => <tr class="border-b"><td class="py-2">{m.nombre}</td><td class="text-cod_gray-600">{periodo(m)}</td></tr>)}</tbody>
+                    </table>
+                </section>
+            </>
+        )}
+
+        {screen === "team" && variant === "B" && (
+            <>
+                <h2 class="text-center text-3xl font-bold text-daisy_bush-700">Miembros activos ({activos.length})</h2>
+                <MembersGrid members={todosActivos} className="!py-16" />
+                <section class="bg-cod_gray-100 px-6 py-16">
+                    <div class="mx-auto max-w-[1140px]">
+                        <h2 class="mb-8 text-3xl font-bold text-daisy_bush-700">Miembros pasados ({pasados.length})</h2>
+                        <div class="grid gap-8 md:grid-cols-3">
+                            {porDecada.map(([dec, lista]) => (
+                                <div>
+                                    <h3 class="mb-3 font-bold text-Shiraz-700">Hasta los {dec}</h3>
+                                    <ul class="space-y-1 text-sm">{lista.map((m) => <li>{m.nombre} <span class="text-cod_gray-500">· {periodo(m)}</span></li>)}</ul>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </section>
+            </>
+        )}
+
+        {screen === "team" && variant === "C" && (
+            <>
+                <section class="mx-auto max-w-[1300px] px-6">
+                    <h2 class="mb-8 text-3xl font-bold text-daisy_bush-700">Miembros activos</h2>
+                    <div class="grid gap-6 lg:grid-cols-3">
+                        {destacados.map((d) => (
+                            <article class="rounded-2xl bg-cod_gray-100 p-6 text-center">
+                                <img src={d.photo} alt={`Foto de ${d.name}`} class="mx-auto h-40 w-40 rounded-full bg-daisy_bush-400 object-cover object-top" />
+                                <p class="mt-4 font-bold text-daisy_bush-700">{d.name}</p>
+                                <p class="text-sm font-bold text-cod_gray-700">{d.role}</p>
+                                <p class="mt-3 line-clamp-5 text-sm text-cod_gray-700">{d.description}</p>
+                            </article>
+                        ))}
+                    </div>
+                </section>
+                <MembersGrid members={sencillos} className="!py-16" />
+                <section class="mx-auto max-w-[1140px] px-6">
+                    <details class="rounded-2xl border p-6">
+                        <summary class="cursor-pointer text-2xl font-bold text-daisy_bush-700">Miembros pasados ({pasados.length})</summary>
+                        <ul class="mt-6 columns-1 gap-8 text-sm sm:columns-2 lg:columns-3">
+                            {pasados.map((m) => <li class="mb-1 break-inside-avoid">{m.nombre} <span class="text-cod_gray-500">· {periodo(m)}</span></li>)}
+                        </ul>
+                    </details>
+                </section>
+            </>
+        )}
+
+        {/* ===================== INICIO («¿Quiénes somos?») ===================== */}
+        {screen === "inicio" && (
+            <section class="mx-auto flex w-full max-w-[1140px] flex-col gap-6 bg-cod_gray-50 px-10 py-20">
+                <h2 class="text-3xl font-semibold text-cod_gray-900">¿Quiénes somos?</h2>
+                <p class="text-lg leading-relaxed text-cod_gray-700 lg:w-1/2">
+                    Somos un grupo de investigación en educación de la Universidad del Norte de Barranquilla, Colombia. Buscamos generar
+                    conocimiento y formular soluciones innovadoras… (texto actual del inicio)
+                </p>
+                {variant === "A" && (
+                    <a href="/web/team" class="w-fit inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-daisy_bush-600 to-daisy_bush-700 px-6 py-3 font-semibold text-white hover:scale-105 transition">
+                        Conoce a nuestro equipo →
+                    </a>
+                )}
+                {variant === "B" && (
+                    <a href="/web/team" class="group grid w-full grid-cols-3 divide-x rounded-2xl border bg-white text-center shadow-sm hover:shadow-lg transition lg:w-1/2">
+                        <div class="p-4"><p class="text-3xl font-bold text-daisy_bush-700">{activos.length}</p><p class="text-sm text-cod_gray-600">integrantes activos</p></div>
+                        <div class="p-4"><p class="text-3xl font-bold text-daisy_bush-700">{parsed.length}</p><p class="text-sm text-cod_gray-600">han pasado por el grupo</p></div>
+                        <div class="flex items-center justify-center p-4 font-semibold text-Shiraz-700 group-hover:underline">Ver integrantes →</div>
+                    </a>
+                )}
+            </section>
+        )}
+    </main>
+
+    <style>
+        /* ---- Burbujas: solo transform (compositor), trayectorias y ritmos distintos ---- */
+        .bubble-soft { border-radius: 9999px; background: radial-gradient(circle closest-side, var(--c), transparent); }
+        .bubble-a { --c: theme('colors.daisy_bush.400 / 32%'); }
+        .bubble-b { --c: theme('colors.Shiraz.400 / 30%'); }
+        .bubble-c { --c: theme('colors.daisy_bush.300 / 24%'); }
+
+        .bubble {
+            will-change: transform;
+            animation: var(--path) var(--dur) cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+        }
+        .bubble-a { --path: drift-1; --dur: 19s; }
+        .bubble-b { --path: drift-2; --dur: 23s; }
+        .bubble-c { --path: drift-3; --dur: 17s; }
+        .bubble-d { --path: drift-2; --dur: 13s; }
+        .bubble-e { --path: drift-3; --dur: 15s; animation-delay: -4s; }
+        .bubble-f { --path: drift-1; --dur: 11s; animation-delay: -7s; }
+        [data-bubbles].is-paused .bubble { animation-play-state: paused; }
+
+        @keyframes drift-1 {
+            0%   { transform: translate3d(0, 0, 0); }
+            33%  { transform: translate3d(28px, -18px, 0); }
+            66%  { transform: translate3d(-12px, -32px, 0); }
+            100% { transform: translate3d(18px, 10px, 0); }
+        }
+        @keyframes drift-2 {
+            0%   { transform: translate3d(0, 0, 0) scale(1); }
+            40%  { transform: translate3d(-34px, 20px, 0) scale(1.06); }
+            100% { transform: translate3d(14px, 36px, 0) scale(0.97); }
+        }
+        @keyframes drift-3 {
+            0%   { transform: translate3d(0, 0, 0); }
+            50%  { transform: translate3d(24px, 22px, 0); }
+            100% { transform: translate3d(-20px, -14px, 0); }
+        }
+
+        /* ---- Plegable de miembros pasados ---- */
+        .chevron { display: inline-block; transition: transform 300ms cubic-bezier(0.16, 1, 0.3, 1); }
+        details.is-open .chevron { transform: rotate(180deg); }
+        .decade { opacity: 0; transform: translateY(8px); transition: opacity 280ms ease-out, transform 360ms cubic-bezier(0.16, 1, 0.3, 1); }
+        details.is-open .decade { opacity: 1; transform: none; transition-delay: calc(80ms + var(--i) * 50ms); }
+        details:not(.is-open) .decade { transition-duration: 150ms; transition-delay: 0ms; }
+
+        @media (prefers-reduced-motion: reduce) {
+            .bubble { animation: none; }
+            .chevron { transition: none; }
+            .decade, details.is-open .decade { transform: none; transition: opacity 200ms ease-out; transition-delay: 0ms; }
+        }
+    </style>
+
+    <script>
+        // Pausa las burbujas fuera de pantalla o con la pestaña oculta
+        document.querySelectorAll<HTMLElement>("[data-bubbles]").forEach((hero) => {
+            let visible = true;
+            const sync = () => hero.classList.toggle("is-paused", !visible || document.hidden);
+            new IntersectionObserver(([e]) => { visible = e.isIntersecting; sync(); }).observe(hero);
+            document.addEventListener("visibilitychange", sync);
+        });
+
+        // <details> animado: altura con WAAPI, interrumpible a mitad de camino
+        const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+        document.querySelectorAll<HTMLDetailsElement>("[data-animated-details]").forEach((details) => {
+            const summary = details.querySelector("summary")!;
+            const body = details.querySelector<HTMLElement>("[data-details-body]")!;
+            let anim: Animation | null = null;
+
+            const run = (opening: boolean) => {
+                const from = body.getBoundingClientRect().height; // altura actual, aunque esté a medio animar
+                anim?.cancel();
+                if (opening) details.open = true;
+                const to = opening ? body.scrollHeight : 0;
+                details.classList.toggle("is-open", opening);
+                if (reduce.matches) { if (!opening) details.open = false; return; }
+                anim = body.animate([{ height: `${from}px` }, { height: `${to}px` }], {
+                    duration: opening ? 380 : 240,
+                    easing: opening ? "cubic-bezier(0.16, 1, 0.3, 1)" : "cubic-bezier(0.4, 0, 1, 1)",
+                });
+                anim.onfinish = () => { anim = null; if (!opening) details.open = false; };
+            };
+
+            summary.addEventListener("click", (e) => {
+                e.preventDefault();
+                run(!details.classList.contains("is-open"));
+            });
+        });
+    </script>
+
+    <!-- Selector flotante de variantes (prototipo) -->
+    <div class="fixed bottom-6 left-1/2 z-[100] flex -translate-x-1/2 items-center gap-3 rounded-full bg-cod_gray-950 px-4 py-2 text-white shadow-2xl ring-4 ring-yellow-300"
+         data-variants={variants.join(",")} data-current={variant} data-screen={screen} id="proto-switcher">
+        <button type="button" data-dir="-1" aria-label="Variante anterior">←</button>
+        <span class="text-sm font-semibold">{screen} · {variant} ({NAMES[`${screen}-${variant}`]})</span>
+        <button type="button" data-dir="1" aria-label="Variante siguiente">→</button>
+    </div>
+    <script>
+        const bar = document.getElementById("proto-switcher")!;
+        const vs = bar.dataset.variants!.split(",");
+        const go = (dir: number) => {
+            const i = (vs.indexOf(bar.dataset.current!) + dir + vs.length) % vs.length;
+            const u = new URL(location.href);
+            u.searchParams.set("screen", bar.dataset.screen!);
+            u.searchParams.set("variant", vs[i]);
+            location.replace(u);
+        };
+        bar.querySelectorAll<HTMLButtonElement>("button").forEach((b) => b.addEventListener("click", () => go(Number(b.dataset.dir))));
+        document.addEventListener("keydown", (e) => {
+            const t = e.target as HTMLElement;
+            if (t.closest("input, textarea, select, [contenteditable]")) return;
+            if (e.key === "ArrowLeft") go(-1);
+            if (e.key === "ArrowRight") go(1);
+        });
+    </script>
+</BaseLayout>

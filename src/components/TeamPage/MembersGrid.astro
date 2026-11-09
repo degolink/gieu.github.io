@@ -1,0 +1,27 @@
+---
+import MemberCard from "./MemberCard.astro";
+import type { Person } from "../../utils/peopleInfo";
+
+interface Props {
+  members: Person[];
+  className?: string;
+}
+
+const { members, className = "" } = Astro.props;
+---
+
+<section
+  class={`py-32 md:py-40 px-6 lg:px-10 ${className}`}
+  aria-labelledby="members-title"
+>
+  <h2 id="members-title" class="sr-only">Miembros del equipo</h2>
+  <div class="mx-auto w-full max-w-[1300px]">
+       
+    <!-- Responsive members grid -->
+    <div class="grid grid-cols-1 gap-y-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-y-10">
+      {members.map((member) => (
+        <MemberCard member={member} />
+      ))}
+    </div>
+  </div>
+</section>

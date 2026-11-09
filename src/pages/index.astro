@@ -4,6 +4,9 @@
 import GroupImage from "../assets/img/team/grupo2021.jpg";
 import BaseLayout from "../layouts/BaseLayout.astro";
 import Contact from "../components/common/Contact.astro";
+import { obtenerIntegrantes } from "../utils/gruplac";
+
+const { activos, pasados } = obtenerIntegrantes();
 ---
 
 <BaseLayout title="GIEU - Grupo de Investigación en Informática Educativa">
@@ -11,34 +14,31 @@ import Contact from "../components/common/Contact.astro";
         <!-- Hero Section -->
         <section
             id="hero-banner"
-            class="bg-hero-image w-full min-h-screen grid p-10 sm:px-20"
+            class="bg-hero-image w-full grid p-6 sm:p-10 lg:px-20"
             aria-label="Sección principal"
         >
             <div
-                class="flex flex-col gap-10 justify-center items-start text-cod_gray-50 max-w-[570px] animate-fade-in"
+                class="flex flex-col gap-5 sm:gap-8 lg:gap-10 justify-center items-start text-cod_gray-50 max-w-[570px] animate-fade-in"
             >
-                <h1 class="text-4xl md:text-5xl font-bold leading-tight text-left">
+                <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold leading-tight text-left">
                     <span>Grupo de investigación en</span>
-                    <span class="text-Shiraz-700 block mt-2">Informática Educativa</span>
+                    <span class="text-Shiraz-300 block mt-2">Informática Educativa</span>
                 </h1>
                 <div class="text-left">
-                    <p class="text-xl md:text-2xl mb-5 tracking-wide">
+                    <p class="text-lg sm:text-xl md:text-2xl mb-4 tracking-wide">
                         Fomentamos el desarrollo de habilidades STEM
-                        <span class="text-daisy_bush-700 font-bold block sm:inline"
+                        <span class="text-daisy_bush-300 font-bold block sm:inline"
                             >para todas y todos.</span
                         >
                     </p>
                     <p class="text-base md:text-lg leading-relaxed">
-                        Todas y todos los estudiantes, merecen construir un
-                        futuro sólido en un mundo complejo. Estamos dedicados a
-                        promover la investigación STEM a través de la tecnología
-                        para incentivar su uso y cambiar la forma en la que se
-                        incluye en las aulas.
+                        Investigamos y desarrollamos soluciones educativas que
+                        llevan la tecnología y las habilidades STEM a las aulas.
                     </p>
                 </div>
                 
                 <!-- Call to Action Buttons -->
-                <div class="flex flex-col sm:flex-row gap-4 mt-6 self-start">
+                <div class="flex flex-col sm:flex-row gap-3 sm:gap-4 self-start">
                     <a 
                         href="/web/research"
                         class="bg-Shiraz-700 hover:bg-Shiraz-800 text-white px-6 py-3 rounded-lg font-semibold transition-all duration-300 text-center transform hover:scale-105"
@@ -61,6 +61,7 @@ import Contact from "../components/common/Contact.astro";
         <section
             class="bg-cod_gray-50 px-10 py-20 gap-10 flex flex-col lg:flex-row w-full max-w-[1140px] mx-auto"
             aria-label="Información sobre el grupo"
+            data-reveal
         >
             <div class="flex flex-col justify-center lg:w-1/2">
                 <h2 class="text-3xl font-semibold mb-6 text-cod_gray-900">¿Quiénes somos?</h2>
@@ -79,6 +80,24 @@ import Contact from "../components/common/Contact.astro";
                     la divulgación y aplicación de tecnología de la información y
                     la comunicación en la educación y la comunicación humana.
                 </p>
+
+                <!-- GrupLAC figures, linking to the team page -->
+                <a
+                    href="/web/team"
+                    class="group grid w-full grid-cols-3 divide-x rounded-2xl border bg-white text-center shadow-sm transition hover:shadow-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-daisy_bush-700"
+                >
+                    <div class="p-4">
+                        <p class="text-3xl font-bold text-daisy_bush-700">{activos.length}</p>
+                        <p class="text-sm text-cod_gray-600">integrantes activos</p>
+                    </div>
+                    <div class="p-4">
+                        <p class="text-3xl font-bold text-daisy_bush-700">{activos.length + pasados.length}</p>
+                        <p class="text-sm text-cod_gray-600">han pasado por el grupo</p>
+                    </div>
+                    <div class="flex items-center justify-center p-4 font-semibold text-Shiraz-700 group-hover:underline">
+                        Ver integrantes →
+                    </div>
+                </a>
             </div>
             <div class="flex items-center justify-center lg:w-1/2">
                 <img
@@ -93,10 +112,10 @@ import Contact from "../components/common/Contact.astro";
         <!-- Features Section -->
         <section class="bg-cod_gray-100 py-20" aria-label="Nuestros enfoques">
             <div class="max-w-[1140px] mx-auto px-10">
-                <h2 class="text-3xl font-semibold text-center mb-12 text-cod_gray-900">
+                <h2 class="text-3xl font-semibold text-center mb-12 text-cod_gray-900" data-reveal>
                     Nuestros Enfoques de Investigación
                 </h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8" data-reveal>
                     <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300">
                         <div class="text-Shiraz-700 text-4xl mb-4">🔬</div>
                         <h3 class="text-xl font-semibold mb-3 text-cod_gray-900">Investigación STEM</h3>
@@ -217,6 +236,8 @@ import Contact from "../components/common/Contact.astro";
 
     <style>
         .bg-hero-image {
+            min-height: calc(100vh - 80px);
+            min-height: calc(100svh - 80px);
             background: linear-gradient(
                     0deg,
                     rgba(18, 18, 18, 0.4) 0%,
@@ -229,6 +250,17 @@ import Contact from "../components/common/Contact.astro";
                 ),
                 url('/web/hero-image.webp');
             @apply bg-center bg-no-repeat bg-cover;
+        }
+
+        @media (max-width: 640px) {
+            .bg-hero-image {
+                min-height: calc(100vh - 76px);
+                min-height: calc(100svh - 76px);
+                background-image:
+                    linear-gradient(90deg, rgba(18, 18, 18, 0.88), rgba(18, 18, 18, 0.58)),
+                    url('/web/hero-image.webp');
+                background-position: 38% center;
+            }
         }
 
         /* Stats Section Styles */
@@ -351,6 +383,24 @@ import Contact from "../components/common/Contact.astro";
             animation: fade-in 1s ease-out;
         }
 
+        [data-reveal].reveal-ready {
+            opacity: 0;
+            transform: translateY(12px);
+            transition: opacity 0.45s ease-out, transform 0.45s ease-out;
+        }
+
+        [data-reveal].reveal-ready.is-visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            [data-reveal].reveal-ready {
+                opacity: 1;
+                transform: none;
+            }
+        }
+
         /* Smooth scrolling for anchor links */
         html {
             scroll-behavior: smooth;
@@ -396,4 +446,21 @@ import Contact from "../components/common/Contact.astro";
             }
         }
     </style>
+    <script>
+        if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches && 'IntersectionObserver' in window) {
+            const revealTargets = document.querySelectorAll<HTMLElement>('[data-reveal]');
+            const revealObserver = new IntersectionObserver((entries, observer) => {
+                entries.forEach((entry) => {
+                    if (!entry.isIntersecting) return;
+                    entry.target.classList.add('is-visible');
+                    observer.unobserve(entry.target);
+                });
+            }, { threshold: 0.1 });
+
+            revealTargets.forEach((target) => {
+                target.classList.add('reveal-ready');
+                revealObserver.observe(target);
+            });
+        }
+    </script>
 </BaseLayout>
