@@ -1,9 +1,14 @@
 ---
 // Burbujas decorativas animadas para heros con degradado.
 // El padre debe ser `relative isolate overflow-hidden` y su contenido `relative z-10`.
+interface Props {
+    daisyOnRight?: boolean;
+}
+
+const { daisyOnRight = false } = Astro.props;
 ---
 
-<div class="pointer-events-none absolute inset-0" aria-hidden="true" data-bubbles>
+<div class:list={["pointer-events-none absolute inset-0", { "daisy-on-right": daisyOnRight }]} aria-hidden="true" data-bubbles>
     <!-- Halo suave con degradado radial (no filter: blur), para que moverlas no repinte -->
     <div class="bubble bubble-soft bubble-a absolute -left-28 -top-28 h-96 w-96"></div>
     <div class="bubble bubble-soft bubble-b absolute -right-32 -top-24 h-[28rem] w-[28rem]"></div>
@@ -19,6 +24,9 @@
     .bubble-a { --c: theme('colors.daisy_bush.400 / 32%'); --path: drift-1; --dur: 19s; }
     .bubble-b { --c: theme('colors.Shiraz.400 / 30%'); --path: drift-2; --dur: 23s; }
     .bubble-c { --c: theme('colors.daisy_bush.300 / 24%'); --path: drift-3; --dur: 17s; }
+    .daisy-on-right .bubble-a { --c: theme('colors.Shiraz.400 / 30%'); }
+    .daisy-on-right .bubble-b { --c: theme('colors.daisy_bush.400 / 32%'); }
+    .daisy-on-right .bubble-c { --c: theme('colors.Shiraz.300 / 24%'); }
     .bubble-d { --path: drift-2; --dur: 13s; }
     .bubble-e { --path: drift-3; --dur: 15s; animation-delay: -4s; }
     .bubble-f { --path: drift-1; --dur: 11s; animation-delay: -7s; }

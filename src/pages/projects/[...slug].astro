@@ -5,7 +5,6 @@ import { getEntry } from "astro:content";
 import BaseLayout from "../../layouts/BaseLayout.astro";
 import ProjectCard from "../../components/ProjectCard.astro";
 import HeroBubbles from "../../components/common/HeroBubbles.astro";
-import LeadersSection from "../../components/TeamPage/LeadersSection.astro";
 import MembersGrid from "../../components/TeamPage/MembersGrid.astro";
 import { obtenerProyectos, slugProyecto } from "../../utils/googleSheets";
 import { projectTeams } from "../../utils/projectTeams";
@@ -22,6 +21,7 @@ const { Content } = entry ? await entry.render() : { Content: null };
 const topProjects = entry ? (await getCollection("projects")).slice(0, 3) : [];
 const equipo = proyecto ? projectTeams[proyecto.titulo] : undefined;
 const totalEquipo = equipo ? equipo.leaders.length + equipo.members.length : 0;
+const integrantesEquipo = equipo ? [...equipo.leaders, ...equipo.members] : [];
 
 const base_url = import.meta.env.BASE_URL;
 ---
@@ -77,10 +77,10 @@ const base_url = import.meta.env.BASE_URL;
     <main class="bg-white pb-16">
         <!-- Project hero -->
         <section
-            class="relative isolate overflow-hidden bg-gradient-to-br from-daisy_bush-900 via-daisy_bush-800 to-Shiraz-800 px-6 py-16 text-white"
+            class="relative isolate overflow-hidden bg-gradient-to-br from-Shiraz-700 via-daisy_bush-800 to-daisy_bush-900 px-6 py-20 text-white"
             aria-labelledby="project-title"
         >
-            <HeroBubbles />
+            <HeroBubbles daisyOnRight />
             <div class="relative z-10 mx-auto flex max-w-[1140px] flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
                     <p class="text-sm text-cod_gray-300">
@@ -93,7 +93,7 @@ const base_url = import.meta.env.BASE_URL;
                         href={proyecto.url_vermas}
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="inline-flex w-fit items-center gap-2 rounded-xl bg-white px-6 py-3 font-semibold text-daisy_bush-800 transition hover:scale-105"
+                        class="inline-flex w-fit items-center gap-2 rounded-xl bg-Shiraz-600 px-6 py-3 font-semibold text-white transition hover:scale-105"
                     >
                         Ver más
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -115,7 +115,7 @@ const base_url = import.meta.env.BASE_URL;
             </nav>
         )}
 
-        <section id="sobre" class="mx-auto max-w-[850px] scroll-mt-32 px-6 py-12 text-lg text-cod_gray-700">
+        <section id="sobre" class="mx-auto max-w-[850px] scroll-mt-32 px-6 pt-12 pb-16 text-lg text-cod_gray-700">
             <p>{proyecto.descripcion}</p>
             <p class="mt-4 text-sm">
                 Estado: {proyecto.estado} · Año: {proyecto.año}{proyecto.tecnologias.length > 0 && ` · ${proyecto.tecnologias.join(", ")}`}
@@ -125,8 +125,7 @@ const base_url = import.meta.env.BASE_URL;
         {equipo && (
             <section id="equipo" class="scroll-mt-32" aria-labelledby="equipo-title">
                 <h2 id="equipo-title" class="mb-8 text-center text-3xl font-bold text-daisy_bush-700">Equipo del proyecto</h2>
-                <LeadersSection leaders={equipo.leaders} />
-                <MembersGrid members={equipo.members} />
+                <MembersGrid members={integrantesEquipo} className="!pt-12 md:!pt-16" />
             </section>
         )}
     </main>
@@ -138,6 +137,7 @@ const base_url = import.meta.env.BASE_URL;
                 document.documentElement.style.setProperty("--header-h", `${header.offsetHeight}px`);
             }).observe(header);
         }
+
     </script>
 </BaseLayout>
 )}
@@ -156,4 +156,5 @@ const base_url = import.meta.env.BASE_URL;
             @apply flex justify-center flex-col gap-10;
         }
     }
+
 </style>

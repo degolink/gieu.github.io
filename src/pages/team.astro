@@ -3,7 +3,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import LeadersSection from "../components/TeamPage/LeadersSection.astro";
 import MembersGrid from "../components/TeamPage/MembersGrid.astro";
 import HeroBubbles from "../components/common/HeroBubbles.astro";
-import { leaders, type Person } from "../utils/peopleInfo";
+import { leaders, memberPhotos, type Person } from "../utils/peopleInfo";
 import { obtenerIntegrantes, pasadosPorDecada, periodo } from "../utils/gruplac";
 
 const { activos, pasados } = obtenerIntegrantes();
@@ -19,17 +19,21 @@ const destacados: Person[] = activos.flatMap((m) => {
 });
 const otrosActivos: Person[] = activos
     .filter((m) => !ficha(m.nombre))
-    .map((m) => ({ name: m.nombre, role: periodo(m) }));
+    .map((m) => ({
+        name: m.nombre,
+        role: periodo(m),
+        photo: memberPhotos[m.nombre.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase()],
+    }));
 const decadas = pasadosPorDecada(pasados);
 ---
 
 <BaseLayout title="Equipo - GIEU - Grupo de Investigación en Informática Educativa">
 
-    <main class="bg-white">
+    <main>
 
         <!-- Team Hero Section -->
     <section
-        class="relative isolate mb-14 min-h-[400px] overflow-hidden bg-gradient-to-br from-daisy_bush-900 via-daisy_bush-800 to-Shiraz-800 text-cod_gray-50"
+        class="relative isolate mb-14 min-h-[400px] overflow-hidden bg-gradient-to-br from-cod_gray-900 via-cod_gray-800 to-cod_gray-700 text-cod_gray-50"
         aria-labelledby="team-title"
     >
         <HeroBubbles />
@@ -41,7 +45,7 @@ const decadas = pasadosPorDecada(pasados);
                     id="team-title"
                     class="text-4xl font-bold leading-tight tracking-tight sm:text-5xl md:text-6xl"
                 >
-                    Conoce a nuestro equipo
+                    Conoce a nuestro <span class="bg-gradient-to-r from-Shiraz-400 to-Shiraz-300 bg-clip-text text-transparent">equipo</span>
                 </h1>
 
                 <p class="mx-auto mt-8 max-w-2xl text-lg leading-relaxed text-cod_gray-200 sm:text-xl">
@@ -51,15 +55,14 @@ const decadas = pasadosPorDecada(pasados);
         </div>
     </section>
 
-        <!-- Active members (GrupLAC) -->
-        <h2 class="mb-8 text-center text-3xl font-bold text-daisy_bush-700">Miembros activos</h2>
+        <div class="h-[68px]" aria-hidden="true"></div>
         <LeadersSection leaders={destacados} />
         <MembersGrid members={otrosActivos} />
 
         <!-- Past members (GrupLAC), collapsible -->
         {pasados.length > 0 && (
             <section class="mx-auto mb-24 max-w-[1140px] px-6">
-                <details class="group rounded-2xl border bg-cod_gray-100 p-6" data-animated-details>
+                <details class="group rounded-2xl border bg-white p-6" data-animated-details>
                     <summary class="flex cursor-pointer list-none items-center justify-between rounded-lg text-2xl font-bold text-daisy_bush-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-daisy_bush-700">
                         Miembros pasados ({pasados.length})
                         <span class="chevron" aria-hidden="true">▾</span>

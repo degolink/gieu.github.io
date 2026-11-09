@@ -1,7 +1,7 @@
 //leaders photos
-import camiloVieira from "../assets/img/optimized/leaders/Camilo Vieira.webp"
+import camiloVieira from "../assets/img/optimized/leaders/Camilo Vieira.png"
 import marianaArboleda from "../assets/img/optimized/leaders/Mariana Arboleda.webp"
-import gabrielaDeLaRosa from "../assets/img/optimized/leaders/Gabriela de la Rosa.webp"
+import gabrielaDeLaRosa from "../assets/img/optimized/leaders/Gabriela de la Rosa.png"
 import angiePadilla from "../assets/img/optimized/leaders/Angie Padilla.webp"
 import roxanaQuintana from "../assets/img/optimized/leaders/Roxana Quintero.webp"
 //memers photos
@@ -19,6 +19,16 @@ import michellCarvajal from "../assets/img/optimized/members/Michell Carvajal.we
 import saraHernandez from "../assets/img/optimized/members/Sara Hernández.webp"
 import sarayPinerez from "../assets/img/optimized/members/Saray Piñerez.webp"
 import williamPerez from "../assets/img/optimized/members/William Pérez.webp"
+import vanessaNavarro from "../assets/img/optimized/GIEdMembers/Vanessa Navarro Angarita.png"
+import monicaOrdonez from "../assets/img/optimized/GIEdMembers/Monica Patricia Ordonez Villa.png"
+import jorgeValencia from "../assets/img/optimized/GIEdMembers/Jorge Alberto Valencia Cobo.png"
+import elsaEscalante from "../assets/img/optimized/GIEdMembers/Elsa Lucia Escalante Barrios.png"
+import carmenRicardo from "../assets/img/optimized/GIEdMembers/Carmen Tulia Ricardo Barreto.png"
+import alejandroEspinal from "../assets/img/optimized/GIEdMembers/Alejandro Espinal Duque.png"
+import wilmanPerezBenitez from "../assets/img/optimized/GIEdMembers/Wilman Enrique Perez Benitez.png"
+import johnCano from "../assets/img/optimized/GIEdMembers/Jonh José Cano Barrios.png"
+import elianaPenaloza from "../assets/img/optimized/GIEdMembers/Eliana Rocío Peñaloza Suarez.png"
+import cinthiaAstorga from "../assets/img/optimized/GIEdMembers/Cinthia Astorga Acevedo.png"
 
 export interface Person {
 	name: string;
@@ -26,6 +36,24 @@ export interface Person {
 	description?: string;
 	photo?: string;
 }
+
+// Fotos adicionales para integrantes que llegan dinámicamente desde GrupLAC.
+// Las claves usan nombres normalizados (sin tildes y en minúsculas).
+export const memberPhotos: Record<string, string> = {
+	"vanessa navarro angarita": vanessaNavarro.src,
+	"monica patricia ordonez villa": monicaOrdonez.src,
+	"jorge alberto valencia cobo": jorgeValencia.src,
+	"elsa lucia escalante barrios": elsaEscalante.src,
+	"carmen tulia ricardo barreto": carmenRicardo.src,
+	"alejandro espinal duque": alejandroEspinal.src,
+	"wilman enrique perez benitez": wilmanPerezBenitez.src,
+	"willian enrique perez benitez": wilmanPerezBenitez.src,
+	"john jose cano barrios": johnCano.src,
+	"jonh jose cano barrios": johnCano.src,
+	"eliana rocio penaloza suarez": elianaPenaloza.src,
+	"cinthia milena astorga acevedo": cinthiaAstorga.src,
+	"cinthia astorga acevedo": cinthiaAstorga.src,
+};
 
 //Leaders information
 export const leaders: Person[] = [
